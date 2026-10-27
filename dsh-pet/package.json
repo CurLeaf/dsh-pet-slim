@@ -1,6 +1,6 @@
 {
   "name": "dsh-pet",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "吃白饭的蓝色大肥鱼，赖在 DeepSeek Harness 里不走了。平时爱玩魔方、爱吃各种零食、偶尔打个盹，闲不住就在桌面上溜达两圈，被你拖来甩去也照旧赖着；你忙起来它跟着忙前忙后，闲下来爱碎碎念，还乐意陪你唠两句。",
   "icon": "assets/logo.png",
   "keywords": [
@@ -94,6 +94,7 @@
     "@anthropic-ai/sdk": "0.135.0",
     "@electron-internal/extract-zip": "^1.0.5",
     "@electron/get": "^5.1.0",
+    "@oxc-project/runtime": "^0.155.0",
     "openai": "7.39.0",
     "zod": "4.6.7"
   },
@@ -124,13 +125,13 @@
     "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.1",
     "@deepseek-ai/dsh-commands": "^0.2.0-rc.1",
     "@deepseek-ai/dsh-credentials": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-home-paths": "^0.2.0-rc.1",
     "@deepseek-ai/dsh-host-webserver": "^0.2.0-rc.1",
-    "@deepseek-ai/dsh-llm": "^0.2.0-rc.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.3",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
     "@types/react": "^18.2.0",

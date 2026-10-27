@@ -43,6 +43,11 @@ export default defineConfig([
     entry: {
       index: 'src/host/index.ts',
     },
-    external: [/^@deepseek-ai\//, /^@electron\//, /^node:/],
+    // 宿主侧把 dsh-home-paths / dsh-llm 及其闭包一起打进产物：DSH 不同版本的 profile
+    // 不保证能解析这些 @deepseek-ai 对等依赖（pnpm 操作会把投影删掉），而它们只是纯函数，
+    // 打包后插件在任何 profile 里都能独立加载。
+    external: [/^@electron\//, /^node:/],
+    // 覆盖 tsdown 对 peerDependencies 的默认外部化：这两个包要进产物。
+    noExternal: [/^@deepseek-ai\//],
   },
 ]);
