@@ -117,6 +117,8 @@ let clickAudio: HTMLAudioElement | null = null;
 let lastClickSoundAt = 0;
 /** 点击音效开关，配置未加载前保守静音。 */
 let clickSoundEnabled = false;
+/** 上次上报「点击」时间（复用一个变量即可，宠物之间共享节流） */
+let lastAffinityAt = 0;
 /** 状态名牌开关（全局配置 main.nameplate.enabled）；false = 不渲染名牌 */
 let nameplateEnabled = true;
 /** 状态档位 → 名牌短文案（没有 task 时兜底） */
@@ -1787,6 +1789,11 @@ export function makePetUI(rt: {
       stopMove();
       // 点击音效放在所有「不播点击动画」的早退分支之后。
       if (clickSoundEnabled) playClickSound();
+      // 亲密度：点击计数（1s 节流，fire-and-forget；失败不影响互动）
+      if (Date.now() - lastAffinityAt > 1000) {
+        lastAffinityAt = Date.now();
+        void postAction('/dsh-pet-7340/affinity', { kind: 'clicks' });
+      }
       setOnce(true);
       if (!petAnims.clicks.length) return;
       const name = pick(petAnims.clicks);

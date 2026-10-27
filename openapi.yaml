@@ -1066,6 +1066,101 @@ paths:
         "405":
           $ref: "#/components/responses/MethodNotAllowed"
 
+  /dsh-pet-7340/affinity:
+    get:
+      tags: [State]
+      operationId: getAffinity
+      summary: 读亲密度统计与等级
+      description: |
+        亲密度只影响本地台词的档位（0 陌生 / 1 熟悉 / 2 亲近 / 3 黏人），不做数值面板。
+        分数 = clicks + throws×2 + chats×3，阈值 10 / 50 / 200。
+      responses:
+        "200":
+          description: 当前等级与累计计数
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, tier, stats]
+                properties:
+                  ok:
+                    type: boolean
+                  tier:
+                    type: integer
+                    minimum: 0
+                    maximum: 3
+                  stats:
+                    type: object
+                    required: [clicks, throws, chats, since]
+                    properties:
+                      clicks:
+                        type: integer
+                      throws:
+                        type: integer
+                      chats:
+                        type: integer
+                      since:
+                        type: integer
+                        description: 首次记录时间（epoch ms）
+    post:
+      tags: [Action]
+      operationId: bumpAffinity
+      summary: 累加一次亲密度
+      description: 只做计数，不产生任何可见数值；写盘去抖 400ms。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [clicks, throws, chats]
+      responses:
+        "200":
+          description: 累加结果（非法 kind 返回 ok:false）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  tier:
+                    type: integer
+                  stats:
+                    type: object
+        "400":
+          description: 'JSON 非法（`{ "error": "invalid JSON body" }`）'
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+    delete:
+      tags: [Action]
+      operationId: resetAffinity
+      summary: 清零亲密度
+      responses:
+        "200":
+          description: 已清零
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  tier:
+                    type: integer
+                  stats:
+                    type: object
+        "405":
+          $ref: "#/components/responses/MethodNotAllowed"
+
   /dsh-pet-7340/pose:
     get:
       tags: [Action]

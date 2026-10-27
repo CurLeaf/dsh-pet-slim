@@ -10,7 +10,7 @@
  *
  * @module dsh-pet/src/host/index
  */
-import { createReadStream, existsSync, fstatSync } from 'node:fs';
+import { createReadStream, existsSync, fstatSync, readFileSync } from 'node:fs';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
@@ -75,6 +75,8 @@ import {
   type HostNotifyFrame,
 } from './notify-events';
 import { CompletionCoalescer, normalizeSummon, qualifyCompletion } from './summon-policy';
+import { AffinityStore } from './affinity';
+import { normalizePools, pickLocalLine, type LinePools } from './local-lines';
 import { profileNameFrom, storageEntries } from './storage-paths';
 import { parseStateWaitQuery, PollStateStore } from './state';
 import { composeSystemPrompt, petPersona } from './persona';
@@ -271,6 +273,29 @@ export function apply(ctx: any): void {
   const legacyUserConfigPath = join(userRoot, 'main-config.json');
   const petConfigDir = join(userRoot, 'pet');
   // 配置路径集（readAllConfig 的唯一输入：内置默认 + 用户主配置 + 文件宠物目录）
+  // 亲密度（本地台词的档位来源）：点击/甩抛/对话累计，去抖落盘；卸载时 flush。
+  const affinity = new AffinityStore(join(userRoot, 'affinity.json'));
+  ctx.effect(
+    () => () => {
+      affinity.flush();
+    },
+    'dsh-pet: affinity flush',
+  );
+  // 本地台词库（零模型碎碎念）：首次使用时读一次，读失败回落到空池（调用方据此退回模型）。
+  let linePools: LinePools | undefined;
+  const linesPath = join(PACKAGE_ROOT, 'assets', 'lines.json');
+  const loadLinePools = (): LinePools => {
+    if (linePools) return linePools;
+    try {
+      linePools = normalizePools(JSON.parse(readFileSync(linesPath, 'utf8')) as unknown);
+    } catch (e) {
+      log.warn('[dsh-pet] 本地台词库读取失败：' + (e instanceof Error ? e.message : String(e)));
+      linePools = normalizePools({});
+    }
+    return linePools;
+  };
+  /** 每只宠物最近说过的 3 句（本地台词去重用） */
+  const recentLines = new Map<string, string[]>();
   const configPaths: ConfigPaths = {
     defaultFile: join(PACKAGE_ROOT, 'assets', 'config.jsonc'),
     userFile: userConfigPath,
@@ -707,6 +732,30 @@ export function apply(ctx: any): void {
     );
     // 文本随返回值带出，且与刚写进叶子的是同一个变量：两条出口给同一份文本，不是一个真相两个版本
     return { ok: true, text: result.text, ...(result.image ? { image: result.image } : {}) };
+  };
+
+  /** 本地台词（零模型）：按工作状态/时段/节日/亲密挑选一句写进 say；不调模型、不读网络。 */
+  const publishLocalLine = (petId: string): { ok: boolean; text?: string; reason?: string } => {
+    try {
+      const cfg = readAllConfig(configPaths);
+      if (!findPetInstance(cfg, petId)) return { ok: false, reason: 'unknown-pet' };
+      const now = new Date();
+      const text = pickLocalLine(loadLinePools(), {
+        state: workStatus.snapshot().state,
+        hour: now.getHours(),
+        date: now,
+        tier: affinity.tier(),
+        recent: recentLines.get(petId) ?? [],
+        rng: Math.random,
+      });
+      recentLines.set(petId, [...(recentLines.get(petId) ?? []), text].slice(-3));
+      state.writePet(petId, 'say', { text });
+      log.info('[dsh-pet] 本地碎碎念 pet=' + petId + '：' + text);
+      return { ok: true, text };
+    } catch (e) {
+      log.warn('[dsh-pet] 本地碎碎念失败 pet=' + petId + '：' + (e instanceof Error ? e.message : String(e)));
+      return { ok: false, reason: 'generate-error' };
+    }
   };
 
   /** 与某只宠物对话：截取最近记忆 → 生成回复 → 写入记忆 → 写进 S 的 pets.<id>.say。
@@ -1798,6 +1847,7 @@ export function apply(ctx: any): void {
         const blocked = lockBlocked(d.petId, url.searchParams);
         if (blocked) return blocked;
         state.writePet(d.petId, 'throw', { angle: d.angle, power: d.power });
+        affinity.bump('throws');
         return { kind: 'json', status: 200, obj: { ok: true } };
       } catch (e) {
         // 配置读取失败等（安装损坏）→ 显式失败，不静默（与 /anim 同一口径）
@@ -1807,6 +1857,30 @@ export function apply(ctx: any): void {
           obj: { ok: false, reason: 'generate-error', message: e instanceof Error ? e.message : String(e) },
         };
       }
+    }
+
+    // 亲密度：GET 读、POST 累计、DELETE 清零。只做计数，不参与任何展示数值（避免养成负担）。
+    if (rest === 'affinity') {
+      if (method === 'GET') {
+        return { kind: 'json', status: 200, obj: { ok: true, tier: affinity.tier(), stats: affinity.get() } };
+      }
+      if (method === 'DELETE') {
+        affinity.reset();
+        return { kind: 'json', status: 200, obj: { ok: true, tier: 0, stats: affinity.get() } };
+      }
+      if (method !== 'POST') return { kind: 'json', status: 405, obj: { error: 'method not allowed' } };
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body ?? 'null');
+      } catch {
+        return { kind: 'json', status: 400, obj: { error: 'invalid JSON body' } };
+      }
+      const kind = String((parsed as { kind?: unknown } | null)?.kind ?? '');
+      if (kind !== 'clicks' && kind !== 'throws' && kind !== 'chats') {
+        return { kind: 'json', status: 200, obj: { ok: false, reason: 'bad-request', message: 'kind 必须是 clicks/throws/chats' } };
+      }
+      const tier = affinity.bump(kind);
+      return { kind: 'json', status: 200, obj: { ok: true, tier, stats: affinity.get() } };
     }
 
     // 实况：GET /pose?pet= 读桌面端快照，POST /pose/report?pet= 由桌面渲染端上报（内部通道）。
@@ -2008,6 +2082,7 @@ export function apply(ctx: any): void {
             };
           }
           const result = await chatWithPet(petId, text);
+          if (result.ok) affinity.bump('chats');
           return { kind: 'json', status: 200, obj: result };
         }
       } catch (e) {
@@ -2431,8 +2506,13 @@ export function apply(ctx: any): void {
           due += 1;
           log.info(`[dsh-pet] 碎碎念到点 pet=${petId}（周期 ${sec}s），开始生成`);
           lastWhisperAt.set(petId, now);
-          // 不 await：生成要几秒，别把调度拍拖住（每只宠物独立生成，互不阻塞）
-          void publishWhisper(petId).catch(() => {});
+          // 本地台词默认开启：零模型、零网络；关掉才走模型生成。
+          if ((cfg.main?.localLines as { enabled?: unknown } | undefined)?.enabled !== false) {
+            publishLocalLine(petId);
+          } else {
+            // 不 await：生成要几秒，别把调度拍拖住（每只宠物独立生成，互不阻塞）
+            void publishWhisper(petId).catch(() => {});
+          }
         }
         if (Number.isFinite(min)) next = min;
         // 每拍一行汇总：调度是否还在跑、下一拍多久、为什么跳过，全在这一行里（300s 一条，量可忽略）

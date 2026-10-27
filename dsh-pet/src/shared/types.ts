@@ -155,6 +155,11 @@ export interface FontConfig {
   followPet: boolean;
 }
 
+/** 本地台词配置（全局）：周期碎碎念是否走本地台词库（零模型）。 */
+export interface LocalLinesConfig {
+  enabled: boolean;
+}
+
 /** 状态名牌配置（全局）：宠物头顶的状态牌。 */
 export interface NameplateConfig {
   /** 是否显示名牌 */
@@ -183,6 +188,8 @@ export interface ClientConfig {
   summon: SummonConfig;
   /** 状态名牌配置（全局） */
   nameplate: NameplateConfig;
+  /** 本地台词配置（全局） */
+  localLines: LocalLinesConfig;
   /** 点击音效开关：true = 点击宠物时播放内置 click-duck.wav（音量 0.5、100ms 内去重），false = 静音。
    *  内置默认 false（默认静音，不突袭既有用户）。只读 main 条目这一份，pet pack 不单独覆盖。 */
   clickSoundEnabled: boolean;

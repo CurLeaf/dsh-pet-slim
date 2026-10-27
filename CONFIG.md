@@ -43,6 +43,8 @@ DSH 设置 → 「桌宠配置」：
 | `eventsRefreshSec`     | 事件刷新周期（秒）                                                                      | 同 `eventsRefreshSec` 结构 |
 | `notificationsEnabled` | 系统通知总开关（布尔）                                                                  | 同 `notificationsEnabled`  |
 | `summon`               | 召唤提醒：`enabled` / `minTurnSeconds` / `coalesceSeconds` / `sound` / `quietHours` | 不继承（只读 main）        |
+| `nameplate`            | 状态名牌：`enabled`（默认 true）                                                    | 不继承（只读 main）        |
+| `localLines`           | 本地台词：`enabled`（默认 true，零模型碎碎念）                                      | 不继承（只读 main）        |
 
 > 覆盖语义：用户层给出即**整体替换**该字段（如写了 `animations` 就用你的整份动画池，替代默认），没写的字段回落包内默认。校验在插件加载时执行——格式错误会在 DSH 控制台显式报错，不会静默运行残缺配置。
 

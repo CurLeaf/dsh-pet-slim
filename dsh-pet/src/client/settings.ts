@@ -260,6 +260,12 @@ export const zh = {
   trayToggle: '系统托盘',
   trayToggleHint:
     '桌面模式启动后在通知区域（macOS 为菜单栏）常驻一个图标，列出配置里的全部宠物，勾选就能切换显示位置——包括当前不在桌面、没有窗口可右键的那些。关掉之后要把宠物叫回桌面，只能开浏览器用设置页，或在网页端那只宠物身上右键。Windows 本来就会把它折叠进「隐藏的图标」面板。仅影响桌面模式。',
+  localLinesToggle: '本地台词',
+  localLinesToggleHint: '周期碎碎念改为从本地台词库挑一句（按状态/时段/节日/亲密度），不调用模型、不花 token。关掉则恢复模型生成。',
+  affinityReset: '清零亲密度',
+  affinityResetOk: '已清零。',
+  affinityResetFail: '清零失败，请稍后再试。',
+  affinityHint: '点击 / 甩抛 / 对话会攒亲密度；只影响台词档位，不显示数值。',
   nameplateToggle: '状态名牌',
   nameplateToggleHint: '宠物头顶显示状态点 + 当前任务/档位 + 本步耗时；空闲自动隐藏，完成/出错显示 10 秒。',
   summonTitle: '提醒（长任务 / 等回答 / 出错）',
@@ -466,6 +472,12 @@ export const en = {
   trayToggle: 'System tray',
   trayToggleHint:
     'Shows a tray icon (notification area on Windows, menu bar on macOS) once desktop mode is running. It lists every pet in the config and toggles each one between desktop and web/none — including pets that are currently off the desktop and therefore have no window to right-click. With it off, bringing a pet back to the desktop requires opening the browser (the settings page, or right-clicking a web pet there). Windows already folds third-party icons into the "hidden icons" overflow. Desktop mode only.',
+  localLinesToggle: 'Local lines',
+  localLinesToggleHint: 'Periodic whispers pick a line from the local library (state / time / festival / affinity) — no model, no tokens. Off = back to model generation.',
+  affinityReset: 'Reset affinity',
+  affinityResetOk: 'Affinity reset.',
+  affinityResetFail: 'Reset failed, try again later.',
+  affinityHint: 'Clicks / throws / chats build affinity; it only affects line tiers, no numbers shown.',
   nameplateToggle: 'Status plate',
   nameplateToggleHint: 'A small plate above the pet: status dot + current task/state + elapsed time; hidden when idle, 10s after done/error.',
   summonTitle: 'Summon (long task / question / error)',
@@ -1001,6 +1013,9 @@ export function makePetConfigSection(rt: {
     const [trayEnabled, setTrayEnabled] = useState(true);
     // 状态名牌开关（全局）：随「保存」整包写入。
     const [nameplate, setNameplate] = useState(true);
+    // 本地台词（零模型碎碎念）开关 + 清零亲密度的反馈文案。
+    const [localLines, setLocalLines] = useState(true);
+    const [affinityMsg, setAffinityMsg] = useState('');
     // 召唤（提醒）配置：与全局开关同语义——只改本地状态，随「保存」整包写入。
     const [summon, setSummon] = useState<SummonConfig>({
       enabled: true,
@@ -1044,6 +1059,9 @@ export function makePetConfigSection(rt: {
       if (typeof m.trayEnabled === 'boolean') setTrayEnabled(m.trayEnabled);
       if (m.nameplate && typeof m.nameplate === 'object') {
         setNameplate((m.nameplate as { enabled?: unknown }).enabled !== false);
+      }
+      if (m.localLines && typeof m.localLines === 'object') {
+        setLocalLines((m.localLines as { enabled?: unknown }).enabled !== false);
       }
       // 召唤配置：成品已归一化（缺字段补默认）；这里再防御一次类型
       if (m.summon && typeof m.summon === 'object' && !Array.isArray(m.summon)) {
@@ -1247,6 +1265,7 @@ export function makePetConfigSection(rt: {
           notificationsEnabled: notifyEnabled,
           summon,
           nameplate: { enabled: nameplate },
+          localLines: { enabled: localLines },
           clickSoundEnabled: clickSound,
           whisperImageEnabled: whisperImage,
           chatImageEnabled: chatImage,
@@ -1680,6 +1699,32 @@ export function makePetConfigSection(rt: {
                 toggleCell('confineToggle', confineScreen, busy, setConfineScreen, true),
                 toggleCell('trayToggle', trayEnabled, busy, setTrayEnabled),
                 toggleCell('nameplateToggle', nameplate, busy, setNameplate),
+                toggleCell('localLinesToggle', localLines, busy, setLocalLines),
+              ],
+            }),
+            h('div', {
+              className: 'dsh-pet-cfg__actions',
+              children: [
+                h('button', {
+                  type: 'button',
+                  className: 'dsh-pet-cfg__btn is-sm',
+                  disabled: busy,
+                  onClick: () => {
+                    void (async () => {
+                      try {
+                        const r = await fetch('/dsh-pet-7340/affinity', { method: 'DELETE' });
+                        const d = (await r.json().catch(() => null)) as { ok?: unknown } | null;
+                        setAffinityMsg(d?.ok === true ? t('affinityResetOk') : t('affinityResetFail'));
+                      } catch {
+                        setAffinityMsg(t('affinityResetFail'));
+                      }
+                    })();
+                  },
+                  children: t('affinityReset'),
+                }),
+                affinityMsg
+                  ? h('span', { className: 'dsh-pet-cfg__note', children: affinityMsg })
+                  : h('span', { className: 'dsh-pet-cfg__note', children: t('affinityHint') }),
               ],
             }),
           ],
