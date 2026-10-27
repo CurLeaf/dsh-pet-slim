@@ -2567,6 +2567,20 @@ components:
           oneOf:
             - type: string
             - type: "null"
+        since:
+          description: 当前展示会话的本回合开始时刻（epoch ms）；`null` = 未知（老宿主或外部写入）
+          oneOf:
+            - type: number
+            - type: "null"
+        sessions:
+          description: 有活动条目的会话数（并行任务数）；老宿主不返回该字段
+          type: number
+        attention:
+          description: 需要人介入的会话数（waiting + error）；老宿主不返回该字段
+          type: number
+        ts:
+          description: 最近一次变化时刻（epoch ms）；客户端据此判断终态名牌是否还该显示
+          type: number
 
     NotifyLeaf:
       type: object

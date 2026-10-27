@@ -323,7 +323,16 @@ export function apply(ctx: any): void {
   let workFlushTimer: ReturnType<typeof setTimeout> | null = null;
   const publishWorkStatus = (): void => {
     const snap = workStatus.snapshot();
-    const key = String(snap.state) + '\u0000' + String(snap.task);
+    const key =
+      String(snap.state) +
+      '\u0000' +
+      String(snap.task) +
+      '\u0000' +
+      String(snap.since) +
+      '\u0000' +
+      String(snap.sessions) +
+      '\u0000' +
+      String(snap.attention);
     if (key === publishedWork) return;
     // 抖动判定：只压 working → result 这一个方向（同档只换文案不算抖动，照常立即写；
     // 反向 result → working 立即写）
@@ -345,7 +354,14 @@ export function apply(ctx: any): void {
     publishedWork = key;
     publishedState = snap.state;
     publishedWorkAt = Date.now();
-    state.writeSection('workStatus', { state: snap.state, task: snap.task });
+    state.writeSection('workStatus', {
+      state: snap.state,
+      task: snap.task,
+      since: snap.since,
+      sessions: snap.sessions,
+      attention: snap.attention,
+      ts: snap.ts,
+    });
   };
   /** Electron 下载日志的收尾槽位保留时长（ms）：够看清「就绪 / 失败」，又不让这条日志一直盖住
    *  随后真实的工作状态（终态档在渲染端本来也会 10s 自动收起气泡）。 */
@@ -2182,6 +2198,7 @@ export function apply(ctx: any): void {
         // 新一轮也开始新的任务上下文：清掉上一轮留下的任务详情文案（issue #59），否则它会一直挂着。
         // 代价：goal 续跑这类多轮任务，每轮开头会回落一瞬档位文案，直到本轮（通常在开头几步内）
         // 再写一次 todo 清单。
+        workStatus.markTurnStart(sessionId, Date.now());
         workStatus.setTask(sessionId, null);
         lastTodoText.delete(sessionId); // 上一轮的清单文案，不该被下一轮的工具跑完时「恢复」回来
         toolsInFlight.delete(sessionId); // 上一轮若有工具没等到 tool/result（被打断），别拖累这一轮

@@ -155,6 +155,12 @@ export interface FontConfig {
   followPet: boolean;
 }
 
+/** 状态名牌配置（全局）：宠物头顶的状态牌。 */
+export interface NameplateConfig {
+  /** 是否显示名牌 */
+  enabled: boolean;
+}
+
 /** 召唤（提醒）配置：长任务完成 / 等回答 / 出错时是否叫你、怎么叫。 */
 export interface SummonConfig {
   /** 总开关：false = 不弹召唤通知（事件仍写进 /state） */
@@ -175,6 +181,8 @@ export interface ClientConfig {
   notificationsEnabled: boolean;
   /** 召唤配置（长任务完成 / 等回答 / 出错的提醒策略；合并器已填默认） */
   summon: SummonConfig;
+  /** 状态名牌配置（全局） */
+  nameplate: NameplateConfig;
   /** 点击音效开关：true = 点击宠物时播放内置 click-duck.wav（音量 0.5、100ms 内去重），false = 静音。
    *  内置默认 false（默认静音，不突袭既有用户）。只读 main 条目这一份，pet pack 不单独覆盖。 */
   clickSoundEnabled: boolean;

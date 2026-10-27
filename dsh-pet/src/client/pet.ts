@@ -117,6 +117,24 @@ let clickAudio: HTMLAudioElement | null = null;
 let lastClickSoundAt = 0;
 /** 点击音效开关，配置未加载前保守静音。 */
 let clickSoundEnabled = false;
+/** 状态名牌开关（全局配置 main.nameplate.enabled）；false = 不渲染名牌 */
+let nameplateEnabled = true;
+/** 状态档位 → 名牌短文案（没有 task 时兜底） */
+const PLATE_STATE_LABEL: Record<string, string> = {
+  thinking: '思考中',
+  working: '干活中',
+  result: '整理中',
+  waiting: '等你确认',
+  success: '搞定了',
+  error: '出错了',
+};
+/** 秒 → 名牌时长：`3:05` / `1:02:09`。 */
+function plateElapsedText(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return m + ':' + String(s).padStart(2, '0');
+  return String(Math.floor(m / 60)) + ':' + String(m % 60).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
 /** 播放点击音效，失败静默。 */
 const playClickSound = (): void => {
   const now = Date.now();
@@ -180,6 +198,17 @@ const css = [
   '.dsh-pet-hit{position:absolute;pointer-events:auto;cursor:url("/dsh-pet-7340/pic/cursor-grab.png") 16 16, grab;z-index:1;touch-action:none;-webkit-user-select:none;-webkit-touch-callout:none}',
   '.dsh-pet-hit.dragging{cursor:url("/dsh-pet-7340/pic/cursor-grabbing.png") 16 16, grabbing}',
   '@media (prefers-reduced-motion: reduce){.dsh-pet-video{transition:none}}',
+  // 状态名牌：头顶小胶囊，不拦截指针；终态颜色随档位变化。
+  '.dsh-pet-nameplate{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 6px);display:flex;align-items:center;gap:.45em;max-width:min(70vw,340px);padding:.32em .68em;border-radius:999px;background:rgba(255,255,255,.93);color:#2b2b2b;font-size:calc(var(--dsh-pet-size,462px)*0.031);line-height:1.5;box-shadow:0 2px 10px rgba(0,0,0,.14);pointer-events:auto;cursor:help;z-index:2;white-space:nowrap}',
+  '.dsh-pet-nameplate-dot{width:.62em;height:.62em;border-radius:50%;background:#8a8a8a;flex:none}',
+  '.dsh-pet-nameplate.is-thinking .dsh-pet-nameplate-dot{background:#5b8def}',
+  '.dsh-pet-nameplate.is-working .dsh-pet-nameplate-dot{background:#2fa36b}',
+  '.dsh-pet-nameplate.is-result .dsh-pet-nameplate-dot{background:#7a8699}',
+  '.dsh-pet-nameplate.is-waiting .dsh-pet-nameplate-dot{background:#e8952f}',
+  '.dsh-pet-nameplate.is-success .dsh-pet-nameplate-dot{background:#2e9e4f}',
+  '.dsh-pet-nameplate.is-error .dsh-pet-nameplate-dot{background:#d94f3d}',
+  '.dsh-pet-nameplate-text{overflow:hidden;text-overflow:ellipsis}',
+  '.dsh-pet-nameplate-time{opacity:.55;font-variant-numeric:tabular-nums;flex:none}',
   // 统一右键菜单样式，与桌面注入同一份。
   MENU_CSS,
   // 悬浮提示样式，与桌面注入同一份。
@@ -1921,6 +1950,31 @@ export function makePetUI(rt: {
     // 终态任务优先于碎碎念与对话，最后是非终态任务。
     // 终态任务只活 10s，所以不让位；非终态常驻，让位 10s 没有损失。
     const workTerminal = workStatus?.state === 'success' || workStatus?.state === 'error';
+    // 状态名牌：视线内的补充信息（离开视线靠系统通知）；与气泡互斥，避免头顶叠两层。
+    // 终态（完成/出错）显示 10 秒后收起；ticker 只在可见时跑，纯本地渲染、不新增轮询。
+    const plateState = workStatus?.state ?? null;
+    const plateTerminal = plateState === 'success' || plateState === 'error';
+    const plateFresh = !plateTerminal || Date.now() - (workStatus?.ts ?? 0) < 10_000;
+    const plateVisible =
+      nameplateEnabled && plateState !== null && plateFresh && !whisperBubbleOn && !(workBubbleOn && workText);
+    const [plateSeconds, setPlateSeconds] = useState(0);
+    useEffect(() => {
+      if (!plateVisible) {
+        setPlateSeconds(0);
+        return;
+      }
+      const tick = (): void => {
+        setPlateSeconds(workStatus?.since ? Math.max(0, Math.round((Date.now() - workStatus.since) / 1000)) : 0);
+      };
+      tick();
+      const timer = window.setInterval(tick, 1000);
+      return () => window.clearInterval(timer);
+    }, [plateVisible, workStatus?.since]);
+    const plateLabel =
+      (workStatus?.task || PLATE_STATE_LABEL[plateState ?? ''] || '') +
+      (typeof workStatus?.sessions === 'number' && workStatus.sessions > 1
+        ? ' · ' + workStatus.sessions + ' 个任务'
+        : '');
     const bubbleNode = (() => {
       if (workTerminal && workBubbleOn && workText && cfg.workStatusEnabled) {
         return h(WhisperBubble, { text: workText, on: workBubbleOn });
@@ -1992,6 +2046,26 @@ export function makePetUI(rt: {
             h('div', hitProps),
           ],
         }),
+        plateVisible
+          ? h('div', {
+              className: 'dsh-pet-nameplate is-' + plateState,
+              title:
+                '会话 ' +
+                String(workStatus?.sessions ?? 0) +
+                ' · 待处理 ' +
+                String(workStatus?.attention ?? 0) +
+                ' · 本回合 ' +
+                plateElapsedText(plateSeconds),
+              'aria-hidden': 'true',
+              children: [
+                h('i', { className: 'dsh-pet-nameplate-dot' }),
+                h('span', { className: 'dsh-pet-nameplate-text', children: plateLabel }),
+                plateSeconds > 0
+                  ? h('span', { className: 'dsh-pet-nameplate-time', children: plateElapsedText(plateSeconds) })
+                  : null,
+              ],
+            })
+          : null,
         // 悬浮提示常驻只切 class，挂卸节点吃不到淡入过渡；坐标由 placeTip 直接写 style。
         // pointer-events:none 见 TOOLTIP_CSS，否则会挡住命中区导致 enter/leave 闪烁。
         h('div', {
@@ -2034,6 +2108,7 @@ export function makePetUI(rt: {
         }
         // 点击音效开关只读 main 条目，非 true 一律静音。
         clickSoundEnabled = main.clickSoundEnabled === true;
+        nameplateEnabled = (main.nameplate as { enabled?: unknown } | undefined)?.enabled !== false;
         const flattened = flattenConfigPets(merged);
         petBridge.current = flattened;
         // 「添加宠物」模板取 main 条目的 pets[0]。

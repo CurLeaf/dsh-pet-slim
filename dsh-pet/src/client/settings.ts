@@ -260,6 +260,8 @@ export const zh = {
   trayToggle: '系统托盘',
   trayToggleHint:
     '桌面模式启动后在通知区域（macOS 为菜单栏）常驻一个图标，列出配置里的全部宠物，勾选就能切换显示位置——包括当前不在桌面、没有窗口可右键的那些。关掉之后要把宠物叫回桌面，只能开浏览器用设置页，或在网页端那只宠物身上右键。Windows 本来就会把它折叠进「隐藏的图标」面板。仅影响桌面模式。',
+  nameplateToggle: '状态名牌',
+  nameplateToggleHint: '宠物头顶显示状态点 + 当前任务/档位 + 本步耗时；空闲自动隐藏，完成/出错显示 10 秒。',
   summonTitle: '提醒（长任务 / 等回答 / 出错）',
   summonHint:
     '只在真需要你时叫：回合完成且超过阈值、模型等你回答、回合出错。窗口可见且聚焦时不弹系统通知，只在宠物气泡里提示。',
@@ -464,6 +466,8 @@ export const en = {
   trayToggle: 'System tray',
   trayToggleHint:
     'Shows a tray icon (notification area on Windows, menu bar on macOS) once desktop mode is running. It lists every pet in the config and toggles each one between desktop and web/none — including pets that are currently off the desktop and therefore have no window to right-click. With it off, bringing a pet back to the desktop requires opening the browser (the settings page, or right-clicking a web pet there). Windows already folds third-party icons into the "hidden icons" overflow. Desktop mode only.',
+  nameplateToggle: 'Status plate',
+  nameplateToggleHint: 'A small plate above the pet: status dot + current task/state + elapsed time; hidden when idle, 10s after done/error.',
   summonTitle: 'Summon (long task / question / error)',
   summonHint:
     'Only when you are actually needed: a turn finishes after the threshold, the model waits for your answer, or a turn fails. When the window is visible and focused, no system notification is shown — only an in-pet bubble.',
@@ -995,6 +999,8 @@ export function makePetConfigSection(rt: {
     const [confineScreen, setConfineScreen] = useState(false);
     // 系统托盘开关（全局）：随「保存」一起提交；宿主半侧据此决定建不建托盘、没桌面宠物时还值不值得常驻 Helper。
     const [trayEnabled, setTrayEnabled] = useState(true);
+    // 状态名牌开关（全局）：随「保存」整包写入。
+    const [nameplate, setNameplate] = useState(true);
     // 召唤（提醒）配置：与全局开关同语义——只改本地状态，随「保存」整包写入。
     const [summon, setSummon] = useState<SummonConfig>({
       enabled: true,
@@ -1036,6 +1042,9 @@ export function makePetConfigSection(rt: {
       if (typeof m.chatImageEnabled === 'boolean') setChatImage(m.chatImageEnabled);
       if (typeof m.confineToScreen === 'boolean') setConfineScreen(m.confineToScreen);
       if (typeof m.trayEnabled === 'boolean') setTrayEnabled(m.trayEnabled);
+      if (m.nameplate && typeof m.nameplate === 'object') {
+        setNameplate((m.nameplate as { enabled?: unknown }).enabled !== false);
+      }
       // 召唤配置：成品已归一化（缺字段补默认）；这里再防御一次类型
       if (m.summon && typeof m.summon === 'object' && !Array.isArray(m.summon)) {
         const raw = m.summon as Record<string, unknown>;
@@ -1237,6 +1246,7 @@ export function makePetConfigSection(rt: {
           pets: pets,
           notificationsEnabled: notifyEnabled,
           summon,
+          nameplate: { enabled: nameplate },
           clickSoundEnabled: clickSound,
           whisperImageEnabled: whisperImage,
           chatImageEnabled: chatImage,
@@ -1669,6 +1679,7 @@ export function makePetConfigSection(rt: {
                 toggleCell('chatImageToggle', chatImage, busy, setChatImage),
                 toggleCell('confineToggle', confineScreen, busy, setConfineScreen, true),
                 toggleCell('trayToggle', trayEnabled, busy, setTrayEnabled),
+                toggleCell('nameplateToggle', nameplate, busy, setNameplate),
               ],
             }),
           ],

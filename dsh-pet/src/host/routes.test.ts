@@ -706,14 +706,38 @@ describe('/pet-display —— 业务失败一律 200 + ok:false（不用 400/404
 });
 
 describe('/work-status —— 外部写入工作状态', () => {
-  type StateBody = { sections: { workStatus: { data: { state: string | null; task: string | null } } } };
+  type StateBody = {
+    sections: {
+      workStatus: {
+        data: {
+          state: string | null;
+          task: string | null;
+          since: number | null;
+          sessions: number;
+          attention: number;
+          ts: number;
+        };
+      };
+    };
+  };
   const work = async () => JSON.parse((await call('/dsh-pet-7340/state')).body) as StateBody;
 
   test('POST 写入 state/task，/state 同步可见', async () => {
     const r = await call('/dsh-pet-7340/work-status', 'POST', JSON.stringify({ state: 'working', task: '编译中' }));
     assert.equal(r.status, 200);
     assert.deepEqual(JSON.parse(r.body), { state: 'working', task: '编译中' });
-    assert.deepEqual((await work()).sections.workStatus.data, { state: 'working', task: '编译中' });
+    const written = (await work()).sections.workStatus.data;
+    assert.deepEqual(
+      {
+        state: written.state,
+        task: written.task,
+        since: written.since,
+        sessions: written.sessions,
+        attention: written.attention,
+      },
+      { state: 'working', task: '编译中', since: null, sessions: 1, attention: 0 },
+    );
+    assert.equal(typeof written.ts, 'number', 'ts 必须随快照写入（名牌靠它判断终态是否还显示）');
   });
 
   test('省略 task 保留上一次；显式 null / 空串清空', async () => {
@@ -735,7 +759,17 @@ describe('/work-status —— 外部写入工作状态', () => {
     const del = await call('/dsh-pet-7340/work-status', 'DELETE');
     assert.equal(del.status, 204);
     assert.equal(del.body, '');
-    assert.deepEqual((await work()).sections.workStatus.data, { state: null, task: null });
+    const cleared = (await work()).sections.workStatus.data;
+    assert.deepEqual(
+      {
+        state: cleared.state,
+        task: cleared.task,
+        since: cleared.since,
+        sessions: cleared.sessions,
+        attention: cleared.attention,
+      },
+      { state: null, task: null, since: null, sessions: 0, attention: 0 },
+    );
 
     const again = await call('/dsh-pet-7340/work-status', 'DELETE');
     assert.equal(again.status, 204);

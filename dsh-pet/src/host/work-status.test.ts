@@ -218,4 +218,37 @@ describe('WorkStatusStore —— 按会话聚合与展示（issue #59）', () =>
       assert.equal(s.snapshot().state, order[i], `${order[i]} 应压过 ${order[i + 1]}`);
     }
   });
+
+  test('markTurnStart：since 跟着展示会话走，清掉会话后回落 null', () => {
+    const s = new WorkStatusStore();
+    s.markTurnStart('a', 1000);
+    s.setState('a', 'working', 1);
+    assert.equal(s.snapshot().since, 1000);
+    // waiting 优先级高于 working：展示切到 b，而 b 还没记开始时刻 → null（不冒充 a 的）
+    s.setState('b', 'waiting', 1);
+    assert.equal(s.snapshot().since, null);
+    s.markTurnStart('b', 2000);
+    assert.equal(s.snapshot().since, 2000);
+    s.clear('b');
+    assert.equal(s.snapshot().since, 1000, '回到 a：用它自己的开始时刻');
+    s.clear('a');
+    assert.equal(s.snapshot().since, null);
+  });
+
+  test('sessions / attention：并行会话数与待处理数', () => {
+    const s = new WorkStatusStore();
+    s.setState('a', 'working', 1);
+    s.setState('b', 'waiting', 1);
+    assert.equal(s.snapshot().sessions, 2);
+    assert.equal(s.snapshot().attention, 1);
+    s.setState('c', 'error', 1);
+    assert.equal(s.snapshot().attention, 2, 'error 也计入待处理');
+    s.clear('b');
+    assert.equal(s.snapshot().sessions, 2);
+    assert.equal(s.snapshot().attention, 1);
+    s.clear('c');
+    s.clear('a');
+    assert.equal(s.snapshot().sessions, 0);
+    assert.equal(s.snapshot().attention, 0);
+  });
 });

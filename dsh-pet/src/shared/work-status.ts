@@ -25,15 +25,31 @@ export const WORK_STATUS_INDEX: Record<WorkStatusState, number> = {
 export interface WorkStatusSnapshot {
   state: WorkStatusState | null; // null = 空闲
   task: string | null; // 当前任务详情（todo/write 提供，可 null）
+  /** 本回合开始时刻（ms）；老宿主没有该字段 → undefined（名牌不显示耗时） */
+  since?: number | null;
+  /** 有活动的会话数；老宿主 → undefined */
+  sessions?: number;
+  /** 需要人介入的会话数（waiting + error）；老宿主 → undefined */
+  attention?: number;
+  /** 最近一次变化时刻（ms）；名牌据它判断终态是否还该显示 */
+  ts?: number;
 }
 
 /** 快照解析：档位不认识 → 归一成 null（空闲）；形状非法 → null，消费端跳过这一拍。 */
 export function toWorkStatus(raw: unknown): WorkStatusSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as { state?: unknown; task?: unknown };
+  const r = raw as { state?: unknown; task?: unknown; since?: unknown; sessions?: unknown; attention?: unknown; ts?: unknown };
   const state: WorkStatusState | null =
     r.state === null || (typeof r.state === 'string' && (WORK_STATUS_STATES as readonly string[]).includes(r.state))
       ? (r.state as WorkStatusState | null)
       : null;
-  return { state, task: typeof r.task === 'string' ? r.task : null };
+  const num = (v: unknown): number | undefined => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+  return {
+    state,
+    task: typeof r.task === 'string' ? r.task : null,
+    since: num(r.since) ?? null,
+    sessions: num(r.sessions),
+    attention: num(r.attention),
+    ts: num(r.ts),
+  };
 }

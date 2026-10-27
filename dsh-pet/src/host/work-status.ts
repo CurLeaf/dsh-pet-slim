@@ -132,6 +132,12 @@ export interface WorkStatusSnapshot {
   state: HostWorkStatusState | null; // null = 尚无会话活动（空闲）
   task: string | null; // 当前任务详情（todo/write 提供，可 null）
   ts: number; // 最近一次变化的时间戳（轮询侧据此检测变化）
+  /** 当前展示会话的本回合开始时刻（ms）；空闲/未知 → null。客户端据此算「已进行 X 分」。 */
+  since: number | null;
+  /** 有活动条目的会话数（并行任务数） */
+  sessions: number;
+  /** 需要人介入的会话数（waiting + error） */
+  attention: number;
 }
 
 /** 每会话聚合条目。 */
@@ -142,6 +148,8 @@ export interface SessionWorkEntry {
   seq: number;
   /** 任务详情文案；null = 该会话没有清单。 */
   task: string | null;
+  /** 本回合开始时刻（ms）；未知 → undefined。 */
+  since?: number;
 }
 
 /** 展示优先级：waiting > error > working > thinking > result > success。
@@ -183,11 +191,24 @@ export class WorkStatusStore {
   // 降级产物会 import 未声明的 @oxc-project/runtime helper——宿主加载插件树时直接
   // ERR_MODULE_NOT_FOUND，整个 profile 起不来（scripts/prepack-check.js 第 8 项守着这条）。
   declare private readonly sessions: Map<string, SessionWorkEntry>;
+  /** 每会话本回合开始时刻（turn/start 写入；不随终态立即清，供「已进行 X」展示） */
+  declare private readonly starts: Map<string, number>;
   declare private readonly snap: WorkStatusSnapshot;
 
   constructor() {
     this.sessions = new Map();
-    this.snap = { state: null, task: null, ts: 0 };
+    this.starts = new Map();
+    this.snap = { state: null, task: null, ts: 0, since: null, sessions: 0, attention: 0 };
+  }
+
+  /** 记下本回合开始时刻（turn/start 调用）；条目未建立时先存着，等 setState 带上。 */
+  markTurnStart(sessionId: string, at: number): void {
+    this.starts.set(sessionId, at);
+    const prev = this.sessions.get(sessionId);
+    if (prev && prev.since !== at) {
+      this.sessions.set(sessionId, { ...prev, since: at });
+      this.refresh();
+    }
   }
 
   /** 该会话当前是否有活动条目（决定 todo/write 是否还值得更新它的文案）。 */
@@ -209,7 +230,7 @@ export class WorkStatusStore {
   setState(sessionId: string, state: HostWorkStatusState, seq = 0): boolean {
     const prev = this.sessions.get(sessionId);
     if (prev?.state === state && prev.seq >= seq) return false;
-    this.sessions.set(sessionId, { state, seq, task: prev?.task ?? null });
+    this.sessions.set(sessionId, { state, seq, task: prev?.task ?? null, since: this.starts.get(sessionId) ?? prev?.since });
     this.refresh();
     return true;
   }
@@ -225,6 +246,7 @@ export class WorkStatusStore {
 
   /** 清掉某会话（回合结束 / 终态过期）：它的 task 一并消失，不会残留到后续活动里。 */
   clear(sessionId: string): boolean {
+    this.starts.delete(sessionId);
     if (!this.sessions.delete(sessionId)) return false;
     this.refresh();
     return true;
@@ -237,12 +259,40 @@ export class WorkStatusStore {
 
   /** 重算展示：state 与 task 任一变化才更新 ts（轮询侧据此触发，两端都靠它刷新）。 */
   private refresh(): void {
-    const best = pickDisplayed(this.sessions.values());
+    // 同 pickDisplayed 的优先级，但保留 id（since 按会话查）
+    let bestId: string | undefined;
+    let best: SessionWorkEntry | undefined;
+    let sessions = 0;
+    let attention = 0;
+    for (const [id, entry] of this.sessions) {
+      sessions += 1;
+      if (entry.state === 'waiting' || entry.state === 'error') attention += 1;
+      if (
+        !best ||
+        WORK_STATUS_PRIORITY[entry.state] > WORK_STATUS_PRIORITY[best.state] ||
+        (WORK_STATUS_PRIORITY[entry.state] === WORK_STATUS_PRIORITY[best.state] && entry.seq > best.seq)
+      ) {
+        best = entry;
+        bestId = id;
+      }
+    }
     const nextState = best?.state ?? null;
     const nextTask = best?.task ?? null;
-    if (nextState === this.snap.state && nextTask === this.snap.task) return;
+    const nextSince = bestId === undefined ? null : (this.starts.get(bestId) ?? best?.since ?? null);
+    if (
+      nextState === this.snap.state &&
+      nextTask === this.snap.task &&
+      nextSince === this.snap.since &&
+      sessions === this.snap.sessions &&
+      attention === this.snap.attention
+    ) {
+      return;
+    }
     this.snap.state = nextState;
     this.snap.task = nextTask;
+    this.snap.since = nextSince;
+    this.snap.sessions = sessions;
+    this.snap.attention = attention;
     this.snap.ts = Date.now();
   }
 }

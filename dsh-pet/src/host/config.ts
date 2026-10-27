@@ -336,6 +336,8 @@ function topFieldValid(key: string, value: unknown): boolean {
     case 'summon':
       // 召唤配置：结构校验交给 normalizeSummon（缺失字段取默认、坏值回落）；这里只挡掉非对象
       return value !== null && typeof value === 'object' && !Array.isArray(value);
+    case 'nameplate':
+      return value !== null && typeof value === 'object' && !Array.isArray(value);
     case 'clickSoundEnabled':
       // 点击音效开关（全局布尔，只读 main 条目）：与 notificationsEnabled 同一套校验
       return typeof value === 'boolean';
@@ -683,6 +685,9 @@ export function saveUserConfig(
   // 召唤配置：传了就整段归一化后落盘（缺字段补默认、坏值回落），没传走透传保留
   const sm = o.summon;
   if (sm !== undefined && (sm === null || typeof sm !== 'object' || Array.isArray(sm))) return null;
+  // 状态名牌：只关心里面的 enabled 布尔；其余字段忽略
+  const np = o.nameplate;
+  if (np !== undefined && (np === null || typeof np !== 'object' || Array.isArray(np))) return null;
   const wie = o.whisperImageEnabled;
   if (wie !== undefined && typeof wie !== 'boolean') return null;
   const cie = o.chatImageEnabled;
@@ -727,6 +732,7 @@ export function saveUserConfig(
   const outConfig: { pets: unknown[]; [key: string]: unknown } = { pets: out };
   if (ne !== undefined) outConfig.notificationsEnabled = ne;
   if (sm !== undefined) outConfig.summon = normalizeSummon(sm);
+  if (np !== undefined) outConfig.nameplate = { enabled: (np as Record<string, unknown>).enabled !== false };
   if (cse !== undefined) outConfig.clickSoundEnabled = cse;
   if (wie !== undefined) outConfig.whisperImageEnabled = wie;
   if (cie !== undefined) outConfig.chatImageEnabled = cie;
@@ -746,6 +752,7 @@ export function saveUserConfig(
   const bodyOwned = new Set(['pets']);
   if (ne !== undefined) bodyOwned.add('notificationsEnabled');
   if (sm !== undefined) bodyOwned.add('summon');
+  if (np !== undefined) bodyOwned.add('nameplate');
   if (cse !== undefined) bodyOwned.add('clickSoundEnabled');
   if (wie !== undefined) bodyOwned.add('whisperImageEnabled');
   if (cie !== undefined) bodyOwned.add('chatImageEnabled');
