@@ -191,3 +191,33 @@ export class CompletionCoalescer {
     this.pendingMaxSeconds = 0;
   }
 }
+
+/** 通知优先级：问题（要人立即回答）> 错误 > 完成。数值越大越优先。 */
+export const SUMMON_RANK: Record<'question' | 'error' | 'done', number> = {
+  question: 3,
+  error: 2,
+  done: 1,
+};
+
+/**
+ * 单槽通知的防覆盖判定：低优先级的「完成」不得在短时间内盖掉高优先级的提问/错误。
+ *
+ * 背景：`sections.notify` 是单槽（后到覆盖先到），客户端 1s 轮询一次。完成事件的合并汇总是定时
+ * flush 的，可能在提问帧写下的几百毫秒内到达——不看优先级就会把「等你回答」顶掉，用户只看到
+ * 「任务完成」。同一优先级（或更高）照常覆盖。
+ *
+ * @param prevKind - 上一条已写帧的召唤类别（无则 null）
+ * @param nextKind - 即将写入的类别
+ * @param elapsedMs - 距上一条写入的毫秒数
+ * @param protectMs - 保护窗口（默认 3000ms，覆盖一次 1s 轮询 + 渲染）
+ */
+export function shouldKeepPrevious(
+  prevKind: 'question' | 'error' | 'done' | null,
+  nextKind: 'question' | 'error' | 'done',
+  elapsedMs: number,
+  protectMs = 3000,
+): boolean {
+  if (prevKind === null) return false;
+  if (elapsedMs >= protectMs) return false;
+  return SUMMON_RANK[prevKind] > SUMMON_RANK[nextKind];
+}

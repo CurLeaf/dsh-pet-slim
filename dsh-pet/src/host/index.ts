@@ -74,7 +74,7 @@ import {
   withSessionId,
   type HostNotifyFrame,
 } from './notify-events';
-import { CompletionCoalescer, normalizeSummon, qualifyCompletion } from './summon-policy';
+import { CompletionCoalescer, normalizeSummon, qualifyCompletion, shouldKeepPrevious } from './summon-policy';
 import { AffinityStore } from './affinity';
 import { normalizePools, pickLocalLine, type LinePools } from './local-lines';
 import { profileNameFrom, storageEntries } from './storage-paths';
@@ -534,7 +534,21 @@ export function apply(ctx: any): void {
   // 系统通知帧：host 监听 DSH 宿主事件生成通知帧（帧契约与 shared/notify.ts 一致），写进 S 的
   // sections.notify，浏览器轮询 /state 后弹 toast。
   // 单槽（后到覆盖先到）：1 秒内连弹多条本身没有意义，所以不带 seq / 增量帧队列。
+  /** 上一条通知的召唤类别与时刻：单槽写入前用它做优先级防覆盖（见 summon-policy）。 */
+  let lastNotifyKind: 'question' | 'error' | 'done' | null = null;
+  let lastNotifyAt = 0;
   const pushNotifyFrame = (frame: HostNotifyFrame): void => {
+    const rawKind = (frame as { summon?: { kind?: unknown } }).summon?.kind;
+    const nextKind = rawKind === 'question' || rawKind === 'error' || rawKind === 'done' ? rawKind : null;
+    // 完成（含合并汇总）不得盖掉 3s 内刚写下的提问/错误——单槽 + 1s 轮询会让人只看到「完成」
+    if (nextKind !== null && shouldKeepPrevious(lastNotifyKind, nextKind, Date.now() - lastNotifyAt)) {
+      log.info('[dsh-pet] 通知让路：未读的高优先级通知（' + String(lastNotifyKind) + '）优先，跳过 ' + nextKind);
+      return;
+    }
+    if (nextKind !== null) {
+      lastNotifyKind = nextKind;
+      lastNotifyAt = Date.now();
+    }
     state.writeSection('notify', frame);
   }; /** 每会话 turn 级标志（goal 续跑轮判定；不参与展示，仅修正 turn/end 终局语义） */
   const turnFlags = new Map<string, WorkStatusTurnContext>();

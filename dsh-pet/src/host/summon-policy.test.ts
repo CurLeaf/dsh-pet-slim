@@ -14,6 +14,8 @@ import {
   normalizeSummon,
   parseClock,
   qualifyCompletion,
+  SUMMON_RANK,
+  shouldKeepPrevious,
 } from './summon-policy.ts';
 
 test('normalizeSummon：空/非法输入一律回落默认，不抛错', () => {
@@ -132,4 +134,16 @@ test('CompletionCoalescer：reset 后回到初始状态', () => {
   c.reset();
   assert.equal(c.pending, 0);
   assert.equal(c.push(200, 3_000_002).emit, true, 'reset 后首条立即发');
+});
+
+test('shouldKeepPrevious：短窗口内完成不得覆盖提问/错误，反向允许', () => {
+  assert.equal(shouldKeepPrevious('question', 'done', 1000), true, '提问优先，完成让路');
+  assert.equal(shouldKeepPrevious('error', 'done', 1000), true, '错误优先，完成让路');
+  assert.equal(shouldKeepPrevious('done', 'question', 1000), false, '提问可以覆盖完成');
+  assert.equal(shouldKeepPrevious('error', 'question', 1000), false, '提问最高优先');
+  assert.equal(shouldKeepPrevious('done', 'error', 1000), false, '错误可覆盖完成');
+  assert.equal(shouldKeepPrevious('question', 'error', 1000), true, '提问不被错误覆盖');
+  assert.equal(shouldKeepPrevious('question', 'done', 5000), false, '保护窗口过后允许');
+  assert.equal(shouldKeepPrevious(null, 'done', 0), false, '没有上一条');
+  assert.equal(SUMMON_RANK.question > SUMMON_RANK.error, true);
 });
