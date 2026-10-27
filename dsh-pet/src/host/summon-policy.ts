@@ -22,6 +22,8 @@ export interface SummonConfig {
   coalesceSeconds: number;
   /** 声音开关（仅 question / error 发声）。 */
   sound: boolean;
+  /** 桌面模式菜单栏角标（待处理数）开关。 */
+  menuBar: boolean;
   /** 免打扰时段（本地时间 HH:MM），null = 不启用。 */
   quietHours: { start: string; end: string } | null;
 }
@@ -32,6 +34,7 @@ export const DEFAULT_SUMMON: SummonConfig = {
   minTurnSeconds: 120,
   coalesceSeconds: 60,
   sound: true,
+  menuBar: true,
   quietHours: { start: '23:00', end: '08:00' },
 };
 
@@ -77,6 +80,7 @@ export function normalizeSummon(raw: unknown, warn?: (message: string) => void):
   const minTurnSeconds = num(o.minTurnSeconds, DEFAULT_SUMMON.minTurnSeconds, 10, 7200);
   const coalesceSeconds = num(o.coalesceSeconds, DEFAULT_SUMMON.coalesceSeconds, 5, 600);
   const sound = typeof o.sound === 'boolean' ? o.sound : DEFAULT_SUMMON.sound;
+  const menuBar = typeof o.menuBar === 'boolean' ? o.menuBar : DEFAULT_SUMMON.menuBar;
 
   let quietHours: SummonConfig['quietHours'] = DEFAULT_SUMMON.quietHours;
   const q = o.quietHours;
@@ -97,7 +101,7 @@ export function normalizeSummon(raw: unknown, warn?: (message: string) => void):
     warn?.('dsh-pet: summon 配置不完整，缺失字段已取默认值');
   }
 
-  return { enabled, minTurnSeconds, coalesceSeconds, sound, quietHours };
+  return { enabled, minTurnSeconds, coalesceSeconds, sound, menuBar, quietHours };
 }
 
 /** 这次回合完成是否值得召唤：开关打开且时长达到门槛。 */

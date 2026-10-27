@@ -55,9 +55,11 @@ describe('「打开网站」按宿主形态自动分派', () => {
       /const openSite = \(url\) => \{[\s\S]*?shell\.openExternal\(target\)/.test(main),
       'site 路径（含回落）必须仍是原来那条打开站点的实现',
     );
+    const dshUses = (main.match(/dsh:\/\/open/g) ?? []).length;
+    assert.equal(dshUses, 2, 'dsh://open 只允许两处：desktop 分支 + 托盘「打开 DSH」');
     assert.ok(
-      (main.match(/dsh:\/\/open/g) ?? []).length === 1,
-      'dsh://open 只允许出现在 desktop 分支里（site 形态不得被顺带改成唤起应用）',
+      /label: '打开 DSH'[\s\S]{0,200}dsh:\/\/open/.test(main),
+      '第二处必须是托盘的显式「打开 DSH」，不得混进 site 路径',
     );
   });
 

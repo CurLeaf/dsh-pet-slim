@@ -37,6 +37,7 @@ test('normalizeSummon：合法字段被采纳，数值夹到合理区间', () =>
     minTurnSeconds: 300,
     coalesceSeconds: 90,
     sound: false,
+    menuBar: true,
     quietHours: { start: '22:30', end: '07:15' },
   });
 

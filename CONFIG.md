@@ -42,7 +42,7 @@ DSH 设置 → 「桌宠配置」：
 | `animationWeights`     | 动画链播放权重（idle / turn / move）                                                    | 同 `animationWeights` 结构 |
 | `eventsRefreshSec`     | 事件刷新周期（秒）                                                                      | 同 `eventsRefreshSec` 结构 |
 | `notificationsEnabled` | 系统通知总开关（布尔）                                                                  | 同 `notificationsEnabled`  |
-| `summon`               | 召唤提醒：`enabled` / `minTurnSeconds` / `coalesceSeconds` / `sound` / `quietHours` | 不继承（只读 main）        |
+| `summon`               | 召唤提醒：`enabled` / `minTurnSeconds` / `coalesceSeconds` / `sound` / `menuBar` / `quietHours` | 不继承（只读 main）        |
 | `nameplate`            | 状态名牌：`enabled`（默认 true）                                                    | 不继承（只读 main）        |
 | `localLines`           | 本地台词：`enabled`（默认 true，零模型碎碎念）                                      | 不继承（只读 main）        |
 

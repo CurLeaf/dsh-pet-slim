@@ -274,6 +274,8 @@ export const zh = {
   summonEnabled: '启用提醒',
   summonEnabledHint: '总开关。关掉后不再弹召唤通知（事件仍写进 /state，回来能看到）。',
   summonSound: '提示音',
+  summonMenuBar: '菜单栏角标',
+  summonMenuBarHint: '桌面模式下在菜单栏显示待处理数（等你回答 + 出错）；仅 macOS 有效，纯网页模式不生效。',
   summonSoundHint: '只对「等你回答 / 出错」发声；任务完成只弹不响。',
   summonMinTurn: '完成时长阈值（秒）',
   summonMinTurnHint: '回合时长达到该值才提醒，避免每个短回合都打扰（默认 120 秒）。',
@@ -486,6 +488,8 @@ export const en = {
   summonEnabled: 'Enable summon',
   summonEnabledHint: 'Master switch. Off = no summon notifications (events are still written to /state).',
   summonSound: 'Sound',
+  summonMenuBar: 'Menu bar badge',
+  summonMenuBarHint: 'Desktop mode only: show pending count (questions + errors) in the menu bar title; macOS only.',
   summonSoundHint: 'Only for “waiting for you” / “error”; completions are silent.',
   summonMinTurn: 'Completion threshold (s)',
   summonMinTurnHint: 'Only turns at least this long are announced (default 120s).',
@@ -1022,6 +1026,7 @@ export function makePetConfigSection(rt: {
       minTurnSeconds: 120,
       coalesceSeconds: 60,
       sound: true,
+      menuBar: true,
       quietHours: { start: '23:00', end: '08:00' },
     });
     // 物理参数（全局）：只改本地状态，随「保存」整包写入；初值仅占位，成品加载成功后才允许编辑与保存。
@@ -1072,6 +1077,7 @@ export function makePetConfigSection(rt: {
           minTurnSeconds: Number.isFinite(Number(raw.minTurnSeconds)) ? Number(raw.minTurnSeconds) : 120,
           coalesceSeconds: Number.isFinite(Number(raw.coalesceSeconds)) ? Number(raw.coalesceSeconds) : 60,
           sound: typeof raw.sound === 'boolean' ? raw.sound : true,
+          menuBar: typeof raw.menuBar === 'boolean' ? raw.menuBar : true,
           quietHours:
             q && typeof q === 'object' && !Array.isArray(q)
               ? { start: String((q as Record<string, unknown>).start ?? '23:00'), end: String((q as Record<string, unknown>).end ?? '08:00') }
@@ -1737,10 +1743,11 @@ export function makePetConfigSection(rt: {
           children: [
             cardHead(t('summonTitle'), t('summonHint')),
             h('div', {
-              className: 'dsh-pet-cfg__grid3',
+              className: 'dsh-pet-cfg__grid4',
               children: [
                 toggleCell('summonEnabled', summon.enabled, busy, (v) => setSummon((s) => ({ ...s, enabled: v }))),
                 toggleCell('summonSound', summon.sound, busy, (v) => setSummon((s) => ({ ...s, sound: v }))),
+                toggleCell('summonMenuBar', summon.menuBar, busy, (v) => setSummon((s) => ({ ...s, menuBar: v }))),
                 globalNumField(
                   'summonMinTurn',
                   summon.minTurnSeconds,

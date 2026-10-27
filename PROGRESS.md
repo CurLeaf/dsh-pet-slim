@@ -49,6 +49,12 @@
 | 时间 | 验收项 | 结果 | 证据 |
 |---|---|---|---|
 |  |  |  |  |
+| 2026-10-27 | P4 AC1 | PASS | Helper 托盘 5s 读 `/state` 的 `workStatus.attention`，macOS 菜单栏标题显示 ` ●N` |
+| 2026-10-27 | P4 AC2 | PASS | 托盘菜单新增「打开 DSH」（`dsh://open`，失败回落浏览器打开站点） |
+| 2026-10-27 | P4 AC3 | PASS | 仅 Helper 进程内实现；纯 Web 不拉起、不报错 |
+| 2026-10-27 | P4 AC4 | PASS | 沿用既有托盘进程（此前实测空窗 228MB / 有窗 ~480MB）；新增仅 5s 一次本机 GET |
+| 2026-10-27 | P4 AC5 | PASS | 配置 `summon.menuBar`（默认 true）+ 设置页「菜单栏角标」开关 |
+| 2026-10-27 | P4 AC6 | PASS | 无 `tray.setTitle`（Windows/Linux）或 `menuBar=false` 时跳过；读取失败保持上次角标 |
 
 ## 阶段收尾
 

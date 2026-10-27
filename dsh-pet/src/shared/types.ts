@@ -176,6 +176,8 @@ export interface SummonConfig {
   coalesceSeconds: number;
   /** 声音：仅 question / error 发声 */
   sound: boolean;
+  /** 桌面模式菜单栏角标开关 */
+  menuBar: boolean;
   /** 免打扰时段（本地时间 HH:MM）；null = 关闭 */
   quietHours: { start: string; end: string } | null;
 }

@@ -682,6 +682,26 @@ function trayIcon() {
  * 建托盘：列出配置里全部宠物（含 display 为 web/none 的——它们当前勾是空的，点一下就能送回来，
  * 这是托盘相对宠物右键菜单的增量）。勾 = 当前 display 含 desktop/both。
  */
+/**
+ * 召唤角标：把「待处理数」（workStatus.attention = waiting + error）写到 macOS 菜单栏标题。
+ * 只是锦上添花：读取失败保持上一次角标，绝不打断托盘。
+ */
+let trayBadgeTimer = null;
+async function refreshTrayBadge() {
+  try {
+    if (!tray) return;
+    const resp = await hostRequest('GET', PET_ROUTE + '/state');
+    const state = JSON.parse(resp.body || '{}');
+    const raw = state && state.sections && state.sections.workStatus && state.sections.workStatus.data;
+    const n = Number(raw && raw.attention);
+    const count = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+    if (typeof tray.setTitle === 'function') tray.setTitle(count > 0 ? ' ●' + count : '');
+    tray.setToolTip(count > 0 ? 'dsh-pet · ' + count + ' 个需要你' : 'dsh-pet 桌面宠物');
+  } catch {
+    /* 角标失败不影响托盘与宠物 */
+  }
+}
+
 async function startTray() {
   try {
     // 请求行要携带回调 URL，而端口在 startBridgeCallback 的 listen 回调里才有值（最多等 2s）
@@ -736,9 +756,28 @@ async function startTray() {
           checked: isDesktopDisplay(pet.display),
           click: () => traySetPetDisplay(pet.id, toggleDisplay(pet.display)),
         })),
-        ...(canQuit ? [{ type: 'separator' }, { label: '退出', click: quitApp }] : []),
+        { type: 'separator' },
+        {
+          label: '打开 DSH',
+          click: () => {
+            // 唤起桌面应用；协议不可用时退回浏览器打开站点，至少不是「点了没反应」
+            shell.openExternal('dsh://open').catch(() => {
+              shell.openExternal(ORIGIN).catch((error) => {
+                console.error('[dsh-pet-desktop-helper] tray open failed:', String(error && error.message ? error.message : error));
+              });
+            });
+          },
+        },
+        ...(canQuit ? [{ label: '退出', click: quitApp }] : []),
       ]),
     );
+    // 召唤角标：macOS 菜单栏标题显示待处理数；summon.menuBar=false 时关闭。
+    const menuBarOn = !(merged && merged.main && merged.main.summon && merged.main.summon.menuBar === false);
+    if (menuBarOn && typeof tray.setTitle === 'function') {
+      trayBadgeTimer = setInterval(() => void refreshTrayBadge(), 5000);
+      trayBadgeTimer.unref?.();
+      void refreshTrayBadge();
+    }
     // Windows 上 setContextMenu 只接管右键，左键默认什么都不做（macOS 相反：左键即弹菜单）
     if (TRAY_PLATFORM.leftClickPopsMenu) tray.on('click', () => tray.popUpContextMenu());
   } catch (e) {
@@ -1210,6 +1249,10 @@ app.whenReady().then(() => {
 // 退出时销毁托盘图标：不销毁会在 Windows 通知区留下「幽灵图标」（鼠标划过才消失）。
 // 宿主改 display 时是 SIGTERM/SIGKILL 硬杀，Windows 上拦不到，所以这条只覆盖优雅退出。
 app.on('before-quit', () => {
+  if (trayBadgeTimer !== null) {
+    clearInterval(trayBadgeTimer);
+    trayBadgeTimer = null;
+  }
   if (!tray) return;
   try {
     tray.destroy();
