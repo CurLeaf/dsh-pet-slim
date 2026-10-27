@@ -71,3 +71,13 @@
 
 **真机验收（等待重启）**：P1 AC6.3 / P2 AC9 / P4 托盘角标 —— 应用当前仍是 5 小时前启动的进程，
 0.5.1 尚未加载；重启后按 VERIFY.md 执行并回填证据。
+
+## 阻塞记录（2026-10-27 · goal round 4）
+
+- 运行中的 DSH 仍是 5h41m 前启动的进程：`GET /state` 仍返回 `sections.balance`（0.4.0 已删），
+  `workStatus` 无 `since/sessions/attention` → 0.5.1 未加载。
+- 待办：用户 Cmd+Q 重启后，按 `VERIFY.md` 完成 P1 AC6.3（通知视觉）、P2 AC9（名牌视觉）、
+  P4 托盘角标三项，并在本文件回填证据。
+- 自检命令（重启后）：
+  `curl -s http://127.0.0.1:<port>/dsh-pet-7340/state | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['sections']['workStatus']['data'])"`
+  期望能看到 `since/sessions/attention`，且不再有 `sections.balance`。
