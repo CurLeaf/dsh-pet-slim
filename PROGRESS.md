@@ -60,7 +60,9 @@
 
 | 阶段 | commit | 通用门槛 G1–G7 | 独立验收代理结论 |
 |---|---|---|---|
-| P1 |  |  |  |
-| P2 |  |  |  |
-| P3 |  |  |  |
-| P4 |  |  |  |
+| P1 | 5b57cb5 | PASS（build/tsc/966→979 tests/lint/openapi；G6 node --check；G7 新增 ticker 已说明） | 代码与单测通过；真机通知待重启 |
+| P2 | db8c708 | PASS（同名门槛；979 tests） | 代码通过；视觉截图待重启 |
+| P3 | b4e6959 | PASS（+11 tests；零模型路径代码审查通过） | 通过 |
+| P4 | d90d68f | PASS（helper node --check；open-target 守卫更新） | 代码通过；托盘角标待桌面模式验证 |
+
+**发布**：v0.5.0（2026-10-27），Release `dsh-pet-0.5.0.tgz`，已装入 desktop profile（替换 npm 0.3.8），待重启生效。
