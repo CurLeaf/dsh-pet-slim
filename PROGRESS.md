@@ -65,4 +65,8 @@
 | P3 | b4e6959 | PASS（+11 tests；零模型路径代码审查通过） | 通过 |
 | P4 | d90d68f | PASS（helper node --check；open-target 守卫更新） | 代码通过；托盘角标待桌面模式验证 |
 
-**发布**：v0.5.0（2026-10-27），Release `dsh-pet-0.5.0.tgz`，已装入 desktop profile（替换 npm 0.3.8），待重启生效。
+**发布**：v0.5.1（2026-10-27），Release `dsh-pet-0.5.1.tgz`，已装入 desktop profile（替换 npm 0.3.8），
+**待重启生效**。真机验收步骤见 `VERIFY.md`。
+
+**真机验收（等待重启）**：P1 AC6.3 / P2 AC9 / P4 托盘角标 —— 应用当前仍是 5 小时前启动的进程，
+0.5.1 尚未加载；重启后按 VERIFY.md 执行并回填证据。
