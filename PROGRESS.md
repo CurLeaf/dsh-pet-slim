@@ -15,7 +15,8 @@
 | 2026-10-27 | P1 AC6.1 | PASS | `summon-policy.test.ts` 10 条：归一化/时钟/免打扰/门槛/合并器 |
 | 2026-10-27 | P1 AC6.2 | PASS | build / tsc / 966 tests / check:openapi / lint 全绿 |
 | 2026-10-27 | P1 AC6.4 | PASS | 测试数 956 → 966（无减少、无跳过） |
-| 2026-10-27 | P1 AC6.3 | PENDING | 需真机重启后注入三类事件验证通知（脚本见 ACCEPTANCE.md） |
+| 2026-10-27 | P1 AC6.2 补 | PASS | 新增宿主级集成测试 4 例（真实 apply + 真实路由 + 真实 session/event）：提问即时、长回合 200s→summon/done、短回合不写帧、出错即时；总测试 984 |
+| 2026-10-27 | P1 AC6.3 | PARTIAL | 宿主侧注入已验证（集成测试）；系统通知的视觉弹出仍待重启后按 VERIFY.md 确认 |
 
 ## P2 状态名牌
 
