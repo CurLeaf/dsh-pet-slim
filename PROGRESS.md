@@ -81,3 +81,12 @@
 - 自检命令（重启后）：
   `curl -s http://127.0.0.1:<port>/dsh-pet-7340/state | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['sections']['workStatus']['data'])"`
   期望能看到 `since/sessions/attention`，且不再有 `sections.balance`。
+
+## 0.5.2 修复记录（桌宠不启动）
+
+- 现象：重启后 `/dsh-pet-7340/state` 404，宠物不出现。
+- 根因：lib/index.js 依赖 `@deepseek-ai/dsh-home-paths` / `dsh-llm`；profile 的 pnpm 管理把
+  DSH 投影的对等包清掉后 import 失败，宿主整体不挂载。
+- 修复：构建期 noExternal 内联两包闭包 + 补 `@oxc-project/runtime` 依赖。
+- 验证：最小 profile（base + web-app + dsh-pet）启动成功，`/state` 200 且字段齐全。
+- 已装：desktop profile `0.5.2`，待重启确认。
