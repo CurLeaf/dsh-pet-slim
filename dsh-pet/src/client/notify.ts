@@ -53,6 +53,68 @@ export const NOTIFY_ICONS = {
 /** 当前生效的总开关；运行中可被 reloadNotifications 更新，设置页保存后即时生效。 */
 let notifyEnabled = true;
 
+/** 客户端侧的召唤配置（与宿主同口径，缺省见 DEFAULT）。 */
+interface SummonUiConfig {
+  enabled: boolean;
+  sound: boolean;
+  quietHours: { start: string; end: string } | null;
+}
+
+const DEFAULT_SUMMON_UI: SummonUiConfig = {
+  enabled: true,
+  sound: true,
+  quietHours: { start: '23:00', end: '08:00' },
+};
+
+let summonConfig: SummonUiConfig = DEFAULT_SUMMON_UI;
+
+/** HH:MM → 当日分钟；非法 → null。 */
+function clockMinutes(value: unknown): number | null {
+  if (typeof value !== 'string') return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h >= 0 && h <= 23 && min >= 0 && min <= 59 ? h * 60 + min : null;
+}
+
+/** 现在是否在免打扰时段（支持跨零点）；未配置/写坏 → false。 */
+function inQuietHours(range: SummonUiConfig['quietHours']): boolean {
+  if (!range) return false;
+  const start = clockMinutes(range.start);
+  const end = clockMinutes(range.end);
+  if (start === null || end === null || start === end) return false;
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  return start < end ? cur >= start && cur < end : cur >= start || cur < end;
+}
+
+/** 两声短提示音（无素材依赖；浏览器可能因自动播放策略静音，静默失败）。 */
+function playSummonSound(): void {
+  try {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return;
+    const ctx = new Ctor();
+    const beep = (freq: number, at: number): void => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + at);
+      gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + at + 0.16);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + at);
+      osc.stop(ctx.currentTime + at + 0.18);
+    };
+    beep(880, 0);
+    beep(1174, 0.18);
+    setTimeout(() => void ctx.close(), 600);
+  } catch {
+    /* 声音只是锦上添花，失败不影响通知 */
+  }
+}
+
 /** 会话跳转器：由 app.ts 注入，取不到服务时退化为不跳会话。 */
 export interface SessionNavigator {
   openSession(sessionId: string): void;
@@ -110,6 +172,14 @@ function toast(title: string, body?: string, icon?: string, sessionId?: string):
 function toastFrame(frame: NotifyFrame): void {
   const t = frameToToast(frame);
   if (!t) return;
+  // 召唤类：受「提醒」独立开关与免打扰约束（普通通知不受影响）；免打扰时事件仍在 /state，回来能看到
+  if (frame.summon) {
+    if (!summonConfig.enabled) return;
+    if (inQuietHours(summonConfig.quietHours)) return;
+    if (summonConfig.sound && (frame.summon.kind === 'question' || frame.summon.kind === 'error')) {
+      playSummonSound();
+    }
+  }
   toast(t.title, t.body, PIC(t.icon), typeof frame.sessionId === 'string' ? frame.sessionId : undefined);
 }
 
@@ -137,20 +207,42 @@ export async function requestNotificationPermission(): Promise<PermissionResult>
 }
 
 /** 读系统通知总开关（成品配置 main 条目）；拉取或解析失败时按开启处理，不阻塞。 */
-async function readNotificationsEnabled(): Promise<boolean> {
+async function readNotifyConfig(): Promise<{ enabled: boolean; summon: SummonUiConfig }> {
+  const fallback = { enabled: true, summon: DEFAULT_SUMMON_UI };
   try {
     const r = await fetch('/dsh-pet-7340/config');
-    if (!r.ok) return true;
-    const d = (await r.json().catch(() => null)) as { main?: { notificationsEnabled?: unknown } } | null;
-    return typeof d?.main?.notificationsEnabled === 'boolean' ? d.main.notificationsEnabled : true;
+    if (!r.ok) return fallback;
+    const d = (await r.json().catch(() => null)) as {
+      main?: { notificationsEnabled?: unknown; summon?: Record<string, unknown> };
+    } | null;
+    const enabled = typeof d?.main?.notificationsEnabled === 'boolean' ? d.main.notificationsEnabled : true;
+    const raw = d?.main?.summon;
+    const q = raw?.quietHours;
+    const quietHours =
+      q === null
+        ? null
+        : q && typeof q === 'object' && clockMinutes((q as { start?: unknown }).start) !== null &&
+            clockMinutes((q as { end?: unknown }).end) !== null
+          ? { start: String((q as { start?: unknown }).start), end: String((q as { end?: unknown }).end) }
+          : DEFAULT_SUMMON_UI.quietHours;
+    return {
+      enabled,
+      summon: {
+        enabled: typeof raw?.enabled === 'boolean' ? raw.enabled : DEFAULT_SUMMON_UI.enabled,
+        sound: typeof raw?.sound === 'boolean' ? raw.sound : DEFAULT_SUMMON_UI.sound,
+        quietHours,
+      },
+    };
   } catch {
-    return true;
+    return fallback;
   }
 }
 
 /** 重读总开关（设置页保存开关后调用）；之后新触发的通知按新值执行，无需刷新页面。 */
 export async function reloadNotifications(): Promise<void> {
-  notifyEnabled = await readNotificationsEnabled();
+  const cfg = await readNotifyConfig();
+  notifyEnabled = cfg.enabled;
+  summonConfig = cfg.summon;
 }
 
 /** 一帧通知 → toast；由容器统一轮询 `/state` 发现 `sections.notify` 变化后调用。 */
@@ -166,9 +258,10 @@ export function notifyFromFrame(frame: unknown): void {
 export function initNotify(navigator?: SessionNavigator): () => void {
   sessionNavigator = navigator;
   // 总开关读成品配置（拉取失败不阻塞，默认开启）；之后由设置页保存后 reloadNotifications 重读。
-  void readNotificationsEnabled().then((enabled) => {
-    notifyEnabled = enabled;
-    if (typeof Notification !== 'undefined' && enabled && Notification.permission === 'default') {
+  void readNotifyConfig().then((cfg) => {
+    notifyEnabled = cfg.enabled;
+    summonConfig = cfg.summon;
+    if (typeof Notification !== 'undefined' && cfg.enabled && Notification.permission === 'default') {
       // 兜底申请；无手势时浏览器可能压制，真正的申请在设置页开关或按钮点击处。
       void requestNotificationPermission();
     }

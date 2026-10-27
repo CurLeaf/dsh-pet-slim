@@ -23,9 +23,29 @@ export function truncate(text: string): string {
   return text.length > MAX_BODY ? text.slice(0, MAX_BODY) + '…' : text;
 }
 
+/** 召唤元信息：这一帧是否属于「叫你」以及它的类别/时长/合并条数。 */
+export interface SummonMeta {
+  kind: 'done' | 'question' | 'error';
+  /** done 的回合时长（秒） */
+  seconds?: number;
+  /** done 合并了几条（>1 时文案改成「N 个任务完成」） */
+  count?: number;
+}
+
+/** 时长人话化：`42 秒` / `5 分 12 秒` / `1 小时 03 分`（与宿主 summon-policy 同口径）。 */
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  if (total < 60) return total + ' 秒';
+  const minutes = Math.floor(total / 60);
+  if (minutes < 60) return minutes + ' 分 ' + String(total % 60).padStart(2, '0') + ' 秒';
+  return Math.floor(minutes / 60) + ' 小时 ' + String(minutes % 60).padStart(2, '0') + ' 分';
+}
+
 /** 通知帧：宿主半侧转发过来的一条 DSH 事件。 */
 export interface NotifyFrame {
   type: string;
+  /** 召唤元信息：存在即表示这条通知受「提醒」配置（开关/免打扰/声音）约束 */
+  summon?: SummonMeta;
   /** 发出这条通知的会话 id；点击通知时据此跳到那条会话。
    *  没有会话位置的事件（host/agent-error）不带这个字段，消费端把缺失当成「只叫窗口」。 */
   sessionId?: string;
@@ -43,6 +63,16 @@ interface TurnEndEvent {
 /** 帧 → toast 文案；不认识的类型或 turn/end 的非弹分支（aborted 等）返回 null。 */
 export function frameToToast(frame: NotifyFrame): { title: string; body: string; icon: string } | null {
   switch (frame.type) {
+    case 'summon/done': {
+      const meta = frame.summon;
+      const count = typeof meta?.count === 'number' && meta.count > 1 ? meta.count : 1;
+      const seconds = typeof meta?.seconds === 'number' ? meta.seconds : 0;
+      return {
+        title: count > 1 ? count + ' 个任务完成' : '任务完成',
+        body: seconds > 0 ? '用时 ' + formatDuration(seconds) : '',
+        icon: NOTIFY_ICONS.done,
+      };
+    }
     case 'session/event': {
       const ev = (frame.event ?? {}) as TurnEndEvent;
       if (ev.type !== 'turn/end') return null;

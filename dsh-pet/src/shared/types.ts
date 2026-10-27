@@ -155,10 +155,26 @@ export interface FontConfig {
   followPet: boolean;
 }
 
+/** 召唤（提醒）配置：长任务完成 / 等回答 / 出错时是否叫你、怎么叫。 */
+export interface SummonConfig {
+  /** 总开关：false = 不弹召唤通知（事件仍写进 /state） */
+  enabled: boolean;
+  /** 回合时长门槛（秒）：完成事件只有达到它才提醒 */
+  minTurnSeconds: number;
+  /** 合并窗口（秒）：窗口内多次完成不重复弹 */
+  coalesceSeconds: number;
+  /** 声音：仅 question / error 发声 */
+  sound: boolean;
+  /** 免打扰时段（本地时间 HH:MM）；null = 关闭 */
+  quietHours: { start: string; end: string } | null;
+}
+
 /** config.jsonc 全集——运行时直接使用。 */
 export interface ClientConfig {
   /** 系统通知总开关：true = 对话完成 / 生成失败 / 输出截断 / 权限申请 / 用户选择时弹出通知；缺失即配置错误 */
   notificationsEnabled: boolean;
+  /** 召唤配置（长任务完成 / 等回答 / 出错的提醒策略；合并器已填默认） */
+  summon: SummonConfig;
   /** 点击音效开关：true = 点击宠物时播放内置 click-duck.wav（音量 0.5、100ms 内去重），false = 静音。
    *  内置默认 false（默认静音，不突袭既有用户）。只读 main 条目这一份，pet pack 不单独覆盖。 */
   clickSoundEnabled: boolean;

@@ -74,6 +74,7 @@ import {
   withSessionId,
   type HostNotifyFrame,
 } from './notify-events';
+import { CompletionCoalescer, normalizeSummon, qualifyCompletion } from './summon-policy';
 import { profileNameFrom, storageEntries } from './storage-paths';
 import { parseStateWaitQuery, PollStateStore } from './state';
 import { composeSystemPrompt, petPersona } from './persona';
@@ -560,8 +561,8 @@ export function apply(ctx: any): void {
       return false; // 查询失败不阻塞通知（与「判据不可用时放行」同一策略）
     }
   };
-  /** 排一个活动门定时器：到点确认空闲才推这一帧 */
-  const scheduleCompletionNotify = (sessionId: string, event: unknown): void => {
+  /** 排一个活动门定时器：到点确认空闲才推「任务完成」召唤帧（时长/合并条数由调用方算好） */
+  const scheduleCompletionNotify = (sessionId: string, meta: { seconds: number; count: number }): void => {
     const prev = notifyActivityTimers.get(sessionId);
     if (prev !== undefined) clearTimeout(prev);
     notifyActivityTimers.set(
@@ -570,9 +571,12 @@ export function apply(ctx: any): void {
         notifyActivityTimers.delete(sessionId);
         void (async () => {
           if (await sessionHasRunningWork(sessionId)) return; // 还有活：等真正的收尾轮再弹
-          const frame = reduceNotifyFrame(event as Parameters<typeof reduceNotifyFrame>[0]);
-          // 这条延迟路径（活动门等 1.5s 确认没活了才推的「对话完成」）最常被点，同样要带会话 id
-          if (frame) pushNotifyFrame(withSessionId(frame, sessionId));
+          pushNotifyFrame(
+            withSessionId(
+              { type: 'summon/done', summon: { kind: 'done', seconds: meta.seconds, count: meta.count } },
+              sessionId,
+            ),
+          );
         })();
       }, NOTIFY_ACTIVITY_DELAY_MS),
     );
@@ -2252,6 +2256,33 @@ export function apply(ctx: any): void {
   // agent/error。两道门：会话门（子代理/委派不发）+ 活动门（只拦「对话完成」，延迟确认没活了再弹）。
   // 纯监听不调用模型；通知是网页端能力，桌面模式不消费。
   ctx.effect(() => {
+    /** 每会话本回合开始时刻（ms）：回合时长 = 结束 - 开始，用于「短回合不叫你」 */
+    const turnStartedAt = new Map<string, number>();
+    /** 完成事件合并器：窗口随配置变化重建 */
+    let completionCoalescer = new CompletionCoalescer(60);
+    let coalesceTimer: ReturnType<typeof setTimeout> | undefined;
+    /** 读召唤配置（成品配置 → 归一化）；读失败回落默认，绝不让通知链路整体失效 */
+    const readSummon = () => {
+      try {
+        const cfg = readAllConfig(configPaths) as unknown as { summon?: unknown };
+        return normalizeSummon(cfg.summon, (m) => log.warn(m));
+      } catch (e) {
+        log.warn('[dsh-pet] 读取召唤配置失败，使用默认值：' + (e instanceof Error ? e.message : String(e)));
+        return normalizeSummon(undefined);
+      }
+    };
+    /** 合并窗口到点：有积压则推一条汇总（多个会话同时收工时只叫一次） */
+    const flushCoalesced = () => {
+      coalesceTimer = undefined;
+      const d = completionCoalescer.flush(Date.now());
+      if (!d.emit) return;
+      pushNotifyFrame({ type: 'summon/done', summon: { kind: 'done', seconds: d.seconds, count: d.count } });
+    };
+    const scheduleCoalesceFlush = () => {
+      if (coalesceTimer !== undefined) return;
+      coalesceTimer = setTimeout(flushCoalesced, completionCoalescer.window);
+      coalesceTimer.unref?.();
+    };
     const sessionDispose = ctx.on(
       'session/event',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- session/event 载荷无公开类型，any 只用于接收，函数内立刻交给 shouldNotifySession / reduceNotifyFrame 推导
@@ -2260,16 +2291,46 @@ export function apply(ctx: any): void {
         // 判据用 header.origin（不是 parentSession，那会把普通 fork 的主对话一起静音），
         // 判据不可用时放行，绝不把通知整体打哑。详见 notify-events.ts 的 shouldNotifySession。
         if (!shouldNotifySession(session)) return;
+        const sid = sessionIdOf(session);
+        // 回合开始：记时刻，回合结束时算时长（短回合不叫你）
+        if (event?.type === 'turn/start') {
+          turnStartedAt.set(sid, Date.now());
+          return;
+        }
         // 活动门（issue #114）：「对话完成」延迟确认这条会话确实没活了再弹——团队会话里 Lead 的
         // 这一轮结束 ≠ 团队收工，成员还在跑时弹「对话完成」是误报。生成失败/输出截断、权限申请、
         // 用户选择不过这道门，直接放行（理由见 notify-events.ts 的 isCompletionTurnEnd）。
         if (isCompletionTurnEnd(event)) {
-          scheduleCompletionNotify(sessionIdOf(session), event);
+          const started = turnStartedAt.get(sid);
+          turnStartedAt.delete(sid);
+          const seconds = started === undefined ? 0 : Math.max(0, (Date.now() - started) / 1000);
+          const cfg = readSummon();
+          if (!qualifyCompletion(seconds, cfg)) return; // 短回合：不叫
+          if (completionCoalescer.window !== cfg.coalesceSeconds * 1000) {
+            completionCoalescer = new CompletionCoalescer(cfg.coalesceSeconds);
+          }
+          const decision = completionCoalescer.push(seconds, Date.now());
+          if (!decision.emit) {
+            scheduleCoalesceFlush(); // 窗口内：攒着，到点汇总一条
+            return;
+          }
+          scheduleCompletionNotify(sid, { seconds: decision.seconds, count: decision.count });
           return;
         }
+        if (event?.type === 'turn/end') turnStartedAt.delete(sid); // 被打断/取消的回合也要清
         const frame = reduceNotifyFrame(event as Parameters<typeof reduceNotifyFrame>[0]);
         // 帧带上「这条通知是哪条会话发出的」：点击时网页据此跳到那条会话（见 withSessionId）
-        if (frame) pushNotifyFrame(withSessionId(frame, sessionIdOf(session)));
+        if (frame) {
+          // 标注召唤类别：提问最高优先；出错次之（客户端据此决定声音与免打扰）
+          if (frame.type === 'question/requested') frame.summon = { kind: 'question' };
+          else {
+            const reason = (event as { data?: { reason?: { kind?: string } } } | null)?.data?.reason?.kind;
+            if (reason === 'error' || reason === 'max-tokens' || reason === 'timeout') {
+              frame.summon = { kind: 'error' };
+            }
+          }
+          pushNotifyFrame(withSessionId(frame, sid));
+        }
       },
     );
     // agent/error（agent-loop dispatch.emit）：无回合位置的生成失败；0.1.5 新增，
@@ -2279,13 +2340,17 @@ export function apply(ctx: any): void {
       'agent/error',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- agent/error 载荷无公开类型，且低版本 DSH 可能不带 error 字段，只能 any 后按可选链取 payload?.error
       (payload: any) => {
-        pushNotifyFrame(agentErrorFrame(payload?.error));
+        pushNotifyFrame({ ...agentErrorFrame(payload?.error), summon: { kind: 'error' } });
       },
     );
     return () => {
       // 卸载时清掉待查的定时器：否则插件已卸载，到点还去写一次 S
       for (const t of notifyActivityTimers.values()) clearTimeout(t);
       notifyActivityTimers.clear();
+      if (coalesceTimer !== undefined) clearTimeout(coalesceTimer);
+      coalesceTimer = undefined;
+      completionCoalescer.reset();
+      turnStartedAt.clear();
       sessionDispose();
       errorDispose();
     };

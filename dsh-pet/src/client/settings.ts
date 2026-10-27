@@ -6,6 +6,7 @@
  * @module dsh-pet/src/client/settings
  */
 import { PET_DISPLAYS } from '../shared/config';
+import type { SummonConfig } from '../shared/types';
 import { DEFAULT_FONT, FONT_PRESETS, FONT_SIZE_MAX, FONT_SIZE_MIN } from '../shared/fonts';
 import { DEFAULT_PHYSICS } from '../shared/physics';
 import { NOTIFY_ICONS, reloadNotifications, requestNotificationPermission, wireNotificationClick } from './notify';
@@ -259,6 +260,19 @@ export const zh = {
   trayToggle: '系统托盘',
   trayToggleHint:
     '桌面模式启动后在通知区域（macOS 为菜单栏）常驻一个图标，列出配置里的全部宠物，勾选就能切换显示位置——包括当前不在桌面、没有窗口可右键的那些。关掉之后要把宠物叫回桌面，只能开浏览器用设置页，或在网页端那只宠物身上右键。Windows 本来就会把它折叠进「隐藏的图标」面板。仅影响桌面模式。',
+  summonTitle: '提醒（长任务 / 等回答 / 出错）',
+  summonHint:
+    '只在真需要你时叫：回合完成且超过阈值、模型等你回答、回合出错。窗口可见且聚焦时不弹系统通知，只在宠物气泡里提示。',
+  summonEnabled: '启用提醒',
+  summonEnabledHint: '总开关。关掉后不再弹召唤通知（事件仍写进 /state，回来能看到）。',
+  summonSound: '提示音',
+  summonSoundHint: '只对「等你回答 / 出错」发声；任务完成只弹不响。',
+  summonMinTurn: '完成时长阈值（秒）',
+  summonMinTurnHint: '回合时长达到该值才提醒，避免每个短回合都打扰（默认 120 秒）。',
+  summonQuietStart: '免打扰开始',
+  summonQuietHint: '本地时间；留空 = 关闭免打扰。支持跨零点（如 23:00 → 08:00）。',
+  summonQuietEnd: '免打扰结束',
+  summonQuietEndHint: '免打扰时段内不弹通知，事件仍保留在 /state。',
   physicsTitle: '物理（拖拽抛掷手感）',
   physicsHint:
     '全局默认，所有宠物共用（pet pack 可在自己种类文件里单独覆盖）；随「保存」写入用户配置（不做即时写入）。浏览器保存后即时生效，桌面端由保存重载宠物窗口后生效。',
@@ -450,6 +464,19 @@ export const en = {
   trayToggle: 'System tray',
   trayToggleHint:
     'Shows a tray icon (notification area on Windows, menu bar on macOS) once desktop mode is running. It lists every pet in the config and toggles each one between desktop and web/none — including pets that are currently off the desktop and therefore have no window to right-click. With it off, bringing a pet back to the desktop requires opening the browser (the settings page, or right-clicking a web pet there). Windows already folds third-party icons into the "hidden icons" overflow. Desktop mode only.',
+  summonTitle: 'Summon (long task / question / error)',
+  summonHint:
+    'Only when you are actually needed: a turn finishes after the threshold, the model waits for your answer, or a turn fails. When the window is visible and focused, no system notification is shown — only an in-pet bubble.',
+  summonEnabled: 'Enable summon',
+  summonEnabledHint: 'Master switch. Off = no summon notifications (events are still written to /state).',
+  summonSound: 'Sound',
+  summonSoundHint: 'Only for “waiting for you” / “error”; completions are silent.',
+  summonMinTurn: 'Completion threshold (s)',
+  summonMinTurnHint: 'Only turns at least this long are announced (default 120s).',
+  summonQuietStart: 'Quiet hours start',
+  summonQuietHint: 'Local time; empty = disabled. Cross-midnight is supported (e.g. 23:00 → 08:00).',
+  summonQuietEnd: 'Quiet hours end',
+  summonQuietEndHint: 'No notifications during quiet hours; events stay in /state.',
   physicsTitle: 'Physics (drag & throw feel)',
   physicsHint:
     'Global default, shared by every pet (a pet pack may override it in its own kind file); written to the user config on "Save" (never written immediately). Applies instantly in the browser; on the desktop it applies once Save reloads the pet windows.',
@@ -968,6 +995,14 @@ export function makePetConfigSection(rt: {
     const [confineScreen, setConfineScreen] = useState(false);
     // 系统托盘开关（全局）：随「保存」一起提交；宿主半侧据此决定建不建托盘、没桌面宠物时还值不值得常驻 Helper。
     const [trayEnabled, setTrayEnabled] = useState(true);
+    // 召唤（提醒）配置：与全局开关同语义——只改本地状态，随「保存」整包写入。
+    const [summon, setSummon] = useState<SummonConfig>({
+      enabled: true,
+      minTurnSeconds: 120,
+      coalesceSeconds: 60,
+      sound: true,
+      quietHours: { start: '23:00', end: '08:00' },
+    });
     // 物理参数（全局）：只改本地状态，随「保存」整包写入；初值仅占位，成品加载成功后才允许编辑与保存。
     const [physics, setPhysics] = useState<PhysicsParams>({ ...DEFAULT_PHYSICS });
     // 字体（全局默认）：与 physics 同一套语义；初值仅占位，成品加载成功后才允许编辑与保存。
@@ -1001,6 +1036,21 @@ export function makePetConfigSection(rt: {
       if (typeof m.chatImageEnabled === 'boolean') setChatImage(m.chatImageEnabled);
       if (typeof m.confineToScreen === 'boolean') setConfineScreen(m.confineToScreen);
       if (typeof m.trayEnabled === 'boolean') setTrayEnabled(m.trayEnabled);
+      // 召唤配置：成品已归一化（缺字段补默认）；这里再防御一次类型
+      if (m.summon && typeof m.summon === 'object' && !Array.isArray(m.summon)) {
+        const raw = m.summon as Record<string, unknown>;
+        const q = raw.quietHours;
+        setSummon({
+          enabled: typeof raw.enabled === 'boolean' ? raw.enabled : true,
+          minTurnSeconds: Number.isFinite(Number(raw.minTurnSeconds)) ? Number(raw.minTurnSeconds) : 120,
+          coalesceSeconds: Number.isFinite(Number(raw.coalesceSeconds)) ? Number(raw.coalesceSeconds) : 60,
+          sound: typeof raw.sound === 'boolean' ? raw.sound : true,
+          quietHours:
+            q && typeof q === 'object' && !Array.isArray(q)
+              ? { start: String((q as Record<string, unknown>).start ?? '23:00'), end: String((q as Record<string, unknown>).end ?? '08:00') }
+              : null,
+        });
+      }
       // physics 段：成品已按「内置默认 ← 用户层」整段填满，直接取用（缺子键再用默认兜底一次）
       if (m.physics && typeof m.physics === 'object') {
         setPhysics({ ...DEFAULT_PHYSICS, ...(m.physics as PhysicsParams) });
@@ -1186,6 +1236,7 @@ export function makePetConfigSection(rt: {
         const body: Record<string, unknown> = {
           pets: pets,
           notificationsEnabled: notifyEnabled,
+          summon,
           clickSoundEnabled: clickSound,
           whisperImageEnabled: whisperImage,
           chatImageEnabled: chatImage,
@@ -1618,6 +1669,62 @@ export function makePetConfigSection(rt: {
                 toggleCell('chatImageToggle', chatImage, busy, setChatImage),
                 toggleCell('confineToggle', confineScreen, busy, setConfineScreen, true),
                 toggleCell('trayToggle', trayEnabled, busy, setTrayEnabled),
+              ],
+            }),
+          ],
+        }),
+
+        // 提醒（召唤）卡：长任务完成 / 等回答 / 出错时的叫醒策略。
+        // 与全局开关同语义：只改本地状态、随「保存」整包写入；保存后由 save() 调 reloadNotifications() 即时生效。
+        h('div', {
+          className: 'dsh-pet-cfg__card',
+          children: [
+            cardHead(t('summonTitle'), t('summonHint')),
+            h('div', {
+              className: 'dsh-pet-cfg__grid3',
+              children: [
+                toggleCell('summonEnabled', summon.enabled, busy, (v) => setSummon((s) => ({ ...s, enabled: v }))),
+                toggleCell('summonSound', summon.sound, busy, (v) => setSummon((s) => ({ ...s, sound: v }))),
+                globalNumField(
+                  'summonMinTurn',
+                  summon.minTurnSeconds,
+                  (v) => setSummon((s) => ({ ...s, minTurnSeconds: Math.min(7200, Math.max(10, Math.round(v))) })),
+                ),
+              ],
+            }),
+            h('div', {
+              className: 'dsh-pet-cfg__grid2',
+              children: [
+                field(
+                  t('summonQuietStart'),
+                  h('input', {
+                    type: 'time',
+                    className: inputClass,
+                    value: summon.quietHours?.start ?? '',
+                    disabled: busy,
+                    onChange: (e: ChangeEvent<HTMLInputElement>) =>
+                      setSummon((s) => ({
+                        ...s,
+                        quietHours: e.target.value
+                          ? { start: e.target.value, end: s.quietHours?.end ?? '08:00' }
+                          : null,
+                      })),
+                  }),
+                  t('summonQuietHint'),
+                ),
+                field(
+                  t('summonQuietEnd'),
+                  h('input', {
+                    type: 'time',
+                    className: inputClass,
+                    value: summon.quietHours?.end ?? '',
+                    disabled: busy || !summon.quietHours,
+                    onChange: (e: ChangeEvent<HTMLInputElement>) =>
+                      setSummon((s) => (s.quietHours ? { ...s, quietHours: { ...s.quietHours, end: e.target.value } } : s)),
+                  }),
+                  t('summonQuietEndHint'),
+                  true,
+                ),
               ],
             }),
           ],
