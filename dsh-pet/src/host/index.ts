@@ -1859,6 +1859,28 @@ export function apply(ctx: any): void {
       }
     }
 
+    // 测试注入（仅 DSH_PET_TEST_HOOKS=1 时挂载，发布版不暴露）：手工验收召唤通知用。
+    if (rest === 'attention/test' && process.env.DSH_PET_TEST_HOOKS === '1') {
+      if (method !== 'POST') return { kind: 'json', status: 405, obj: { error: 'method not allowed' } };
+      let payload: unknown;
+      try {
+        payload = JSON.parse(body ?? 'null');
+      } catch {
+        return { kind: 'json', status: 400, obj: { error: 'invalid JSON body' } };
+      }
+      const kindRaw = String((payload as { kind?: unknown } | null)?.kind ?? '');
+      const kind = kindRaw === 'question' || kindRaw === 'error' ? kindRaw : 'done';
+      const seconds = Number((payload as { seconds?: unknown } | null)?.seconds ?? 300);
+      const frame =
+        kind === 'done'
+          ? { type: 'summon/done', summon: { kind, seconds, count: 1 } }
+          : kind === 'question'
+            ? { type: 'question/requested', summon: { kind }, questions: [{ question: '测试：模型在等你回答' }] }
+            : { type: 'host/agent-error', summon: { kind }, message: '测试：模拟生成失败' };
+      pushNotifyFrame(frame);
+      return { kind: 'json', status: 200, obj: { ok: true, injected: kind } };
+    }
+
     // 亲密度：GET 读、POST 累计、DELETE 清零。只做计数，不参与任何展示数值（避免养成负担）。
     if (rest === 'affinity') {
       if (method === 'GET') {
