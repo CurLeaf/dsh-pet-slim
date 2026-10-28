@@ -261,7 +261,8 @@ export const zh = {
   trayToggleHint:
     '桌面模式启动后在通知区域（macOS 为菜单栏）常驻一个图标，列出配置里的全部宠物，勾选就能切换显示位置——包括当前不在桌面、没有窗口可右键的那些。关掉之后要把宠物叫回桌面，只能开浏览器用设置页，或在网页端那只宠物身上右键。Windows 本来就会把它折叠进「隐藏的图标」面板。仅影响桌面模式。',
   localLinesToggle: '本地台词',
-  localLinesToggleHint: '周期碎碎念改为从本地台词库挑一句（按状态/时段/节日/亲密度），不调用模型、不花 token。关掉则恢复模型生成。',
+  localLinesToggleHint:
+    '周期碎碎念改为从本地台词库挑一句（按状态/时段/节日/亲密度），不调用模型、不花 token。关掉则恢复模型生成。',
   affinityReset: '清零亲密度',
   affinityResetOk: '已清零。',
   affinityResetFail: '清零失败，请稍后再试。',
@@ -475,13 +476,15 @@ export const en = {
   trayToggleHint:
     'Shows a tray icon (notification area on Windows, menu bar on macOS) once desktop mode is running. It lists every pet in the config and toggles each one between desktop and web/none — including pets that are currently off the desktop and therefore have no window to right-click. With it off, bringing a pet back to the desktop requires opening the browser (the settings page, or right-clicking a web pet there). Windows already folds third-party icons into the "hidden icons" overflow. Desktop mode only.',
   localLinesToggle: 'Local lines',
-  localLinesToggleHint: 'Periodic whispers pick a line from the local library (state / time / festival / affinity) — no model, no tokens. Off = back to model generation.',
+  localLinesToggleHint:
+    'Periodic whispers pick a line from the local library (state / time / festival / affinity) — no model, no tokens. Off = back to model generation.',
   affinityReset: 'Reset affinity',
   affinityResetOk: 'Affinity reset.',
   affinityResetFail: 'Reset failed, try again later.',
   affinityHint: 'Clicks / throws / chats build affinity; it only affects line tiers, no numbers shown.',
   nameplateToggle: 'Status plate',
-  nameplateToggleHint: 'A small plate above the pet: status dot + current task/state + elapsed time; hidden when idle, 10s after done/error.',
+  nameplateToggleHint:
+    'A small plate above the pet: status dot + current task/state + elapsed time; hidden when idle, 10s after done/error.',
   summonTitle: 'Summon (long task / question / error)',
   summonHint:
     'Only when you are actually needed: a turn finishes after the threshold, the model waits for your answer, or a turn fails. When the window is visible and focused, no system notification is shown — only an in-pet bubble.',
@@ -1080,7 +1083,10 @@ export function makePetConfigSection(rt: {
           menuBar: typeof raw.menuBar === 'boolean' ? raw.menuBar : true,
           quietHours:
             q && typeof q === 'object' && !Array.isArray(q)
-              ? { start: String((q as Record<string, unknown>).start ?? '23:00'), end: String((q as Record<string, unknown>).end ?? '08:00') }
+              ? {
+                  start: String((q as Record<string, unknown>).start ?? '23:00'),
+                  end: String((q as Record<string, unknown>).end ?? '08:00'),
+                }
               : null,
         });
       }
@@ -1748,10 +1754,8 @@ export function makePetConfigSection(rt: {
                 toggleCell('summonEnabled', summon.enabled, busy, (v) => setSummon((s) => ({ ...s, enabled: v }))),
                 toggleCell('summonSound', summon.sound, busy, (v) => setSummon((s) => ({ ...s, sound: v }))),
                 toggleCell('summonMenuBar', summon.menuBar, busy, (v) => setSummon((s) => ({ ...s, menuBar: v }))),
-                globalNumField(
-                  'summonMinTurn',
-                  summon.minTurnSeconds,
-                  (v) => setSummon((s) => ({ ...s, minTurnSeconds: Math.min(7200, Math.max(10, Math.round(v))) })),
+                globalNumField('summonMinTurn', summon.minTurnSeconds, (v) =>
+                  setSummon((s) => ({ ...s, minTurnSeconds: Math.min(7200, Math.max(10, Math.round(v))) })),
                 ),
               ],
             }),
@@ -1783,7 +1787,9 @@ export function makePetConfigSection(rt: {
                     value: summon.quietHours?.end ?? '',
                     disabled: busy || !summon.quietHours,
                     onChange: (e: ChangeEvent<HTMLInputElement>) =>
-                      setSummon((s) => (s.quietHours ? { ...s, quietHours: { ...s.quietHours, end: e.target.value } } : s)),
+                      setSummon((s) =>
+                        s.quietHours ? { ...s, quietHours: { ...s.quietHours, end: e.target.value } } : s,
+                      ),
                   }),
                   t('summonQuietEndHint'),
                   true,

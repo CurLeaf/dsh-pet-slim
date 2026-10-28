@@ -1913,7 +1913,11 @@ export function apply(ctx: any): void {
       }
       const kind = String((parsed as { kind?: unknown } | null)?.kind ?? '');
       if (kind !== 'clicks' && kind !== 'throws' && kind !== 'chats') {
-        return { kind: 'json', status: 200, obj: { ok: false, reason: 'bad-request', message: 'kind 必须是 clicks/throws/chats' } };
+        return {
+          kind: 'json',
+          status: 200,
+          obj: { ok: false, reason: 'bad-request', message: 'kind 必须是 clicks/throws/chats' },
+        };
       }
       const tier = affinity.bump(kind);
       return { kind: 'json', status: 200, obj: { ok: true, tier, stats: affinity.get() } };

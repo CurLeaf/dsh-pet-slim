@@ -13,15 +13,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  flattenCounters,
-  readAnim,
-  readPosition,
-  readSay,
-  readThrow,
-  takeChanged,
-  type PollState,
-} from './state.ts';
+import { flattenCounters, readAnim, readPosition, readSay, readThrow, takeChanged, type PollState } from './state.ts';
 
 /** 造一份 S：sections / pets 用简写（叶子值 = counter，data 用 data 字段给） */
 function makeState(

@@ -22,8 +22,7 @@ try {
   );
   process.exit(3);
 }
-const { app, BrowserWindow, ipcMain, screen, shell, protocol, Tray, Menu, nativeImage, powerMonitor } =
-  electronApi;
+const { app, BrowserWindow, ipcMain, screen, shell, protocol, Tray, Menu, nativeImage, powerMonitor } = electronApi;
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { readFileSync, writeFileSync } = require('node:fs');
@@ -763,7 +762,10 @@ async function startTray() {
             // 唤起桌面应用；协议不可用时退回浏览器打开站点，至少不是「点了没反应」
             shell.openExternal('dsh://open').catch(() => {
               shell.openExternal(ORIGIN).catch((error) => {
-                console.error('[dsh-pet-desktop-helper] tray open failed:', String(error && error.message ? error.message : error));
+                console.error(
+                  '[dsh-pet-desktop-helper] tray open failed:',
+                  String(error && error.message ? error.message : error),
+                );
               });
             });
           },

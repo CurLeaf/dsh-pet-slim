@@ -92,7 +92,8 @@ function inQuietHours(range: SummonUiConfig['quietHours']): boolean {
 /** 两声短提示音（无素材依赖；浏览器可能因自动播放策略静音，静默失败）。 */
 function playSummonSound(): void {
   try {
-    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctor =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
     const ctx = new Ctor();
     const beep = (freq: number, at: number): void => {
@@ -221,7 +222,9 @@ async function readNotifyConfig(): Promise<{ enabled: boolean; summon: SummonUiC
     const quietHours =
       q === null
         ? null
-        : q && typeof q === 'object' && clockMinutes((q as { start?: unknown }).start) !== null &&
+        : q &&
+            typeof q === 'object' &&
+            clockMinutes((q as { start?: unknown }).start) !== null &&
             clockMinutes((q as { end?: unknown }).end) !== null
           ? { start: String((q as { start?: unknown }).start), end: String((q as { end?: unknown }).end) }
           : DEFAULT_SUMMON_UI.quietHours;

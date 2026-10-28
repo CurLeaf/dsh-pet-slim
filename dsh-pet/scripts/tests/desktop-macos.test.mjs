@@ -25,7 +25,7 @@ test(
         ...config.pets[0],
         size: 150,
         fixedEnabled: true,
-              whisperEnabled: false,
+        whisperEnabled: false,
         workStatusEnabled: false,
         display: 'desktop',
         position: { corner: 'top-left', marginX: 200, marginY: 0 },

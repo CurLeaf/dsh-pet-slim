@@ -230,7 +230,12 @@ export class WorkStatusStore {
   setState(sessionId: string, state: HostWorkStatusState, seq = 0): boolean {
     const prev = this.sessions.get(sessionId);
     if (prev?.state === state && prev.seq >= seq) return false;
-    this.sessions.set(sessionId, { state, seq, task: prev?.task ?? null, since: this.starts.get(sessionId) ?? prev?.since });
+    this.sessions.set(sessionId, {
+      state,
+      seq,
+      task: prev?.task ?? null,
+      since: this.starts.get(sessionId) ?? prev?.since,
+    });
     this.refresh();
     return true;
   }

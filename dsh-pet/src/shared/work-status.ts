@@ -38,7 +38,14 @@ export interface WorkStatusSnapshot {
 /** 快照解析：档位不认识 → 归一成 null（空闲）；形状非法 → null，消费端跳过这一拍。 */
 export function toWorkStatus(raw: unknown): WorkStatusSnapshot | null {
   if (!raw || typeof raw !== 'object') return null;
-  const r = raw as { state?: unknown; task?: unknown; since?: unknown; sessions?: unknown; attention?: unknown; ts?: unknown };
+  const r = raw as {
+    state?: unknown;
+    task?: unknown;
+    since?: unknown;
+    sessions?: unknown;
+    attention?: unknown;
+    ts?: unknown;
+  };
   const state: WorkStatusState | null =
     r.state === null || (typeof r.state === 'string' && (WORK_STATUS_STATES as readonly string[]).includes(r.state))
       ? (r.state as WorkStatusState | null)

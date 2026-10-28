@@ -52,7 +52,10 @@ test('normalizeSummon：quietHours 写坏 → 告警并回落默认；显式 nul
   const warnings: string[] = [];
   const bad = normalizeSummon({ quietHours: { start: '25:00', end: '08:00' } }, (m) => warnings.push(m));
   assert.deepEqual(bad.quietHours, DEFAULT_SUMMON.quietHours);
-  assert.ok(warnings.some((w) => w.includes('quietHours')), '必须留下告警');
+  assert.ok(
+    warnings.some((w) => w.includes('quietHours')),
+    '必须留下告警',
+  );
 
   const off = normalizeSummon({ quietHours: null });
   assert.equal(off.quietHours, null);

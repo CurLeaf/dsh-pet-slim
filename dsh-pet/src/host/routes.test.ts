@@ -253,7 +253,6 @@ describe('/state —— 轮询统一状态', () => {
     // 其余用例都用 timeout=0，走同一个分支但不会真的等。
     assert.ok(elapsed >= 180, `应当真的挂起约 200ms，实测 ${elapsed}ms`);
   });
-
 });
 
 describe('轮询统一后删掉的旧端点 —— 不得复活', () => {
@@ -795,5 +794,3 @@ describe('/work-status —— 外部写入工作状态', () => {
     assert.equal(big.status, 413);
   });
 });
-
-
