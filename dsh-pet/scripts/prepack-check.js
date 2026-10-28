@@ -156,19 +156,24 @@ if (total > 200e6) fail(`package too large: ${mb}MB (limit 200MB)`);
 else ok(`package size ${mb}MB`);
 
 // rolldown 在 target es2020 下会为「带初始化器的类字段」产出降级语法，
-// 打包结果里就会多出 `import _defineProperty from "@oxc-project/runtime/helpers/defineProperty"`；
-// 该包既不在 dependencies 也不随包发布，宿主加载插件树时会 ERR_MODULE_NOT_FOUND，整个 profile 起不来。
-// 约定是类字段一律 declare 加构造器赋值，避免降级出外部 helper（见 src/host/helper-process.ts）。
+// 打包结果里就会多出 `import _defineProperty from "@oxc-project/runtime/helpers/defineProperty"`。
+// 若该包没有被声明为运行时依赖，宿主加载插件树时会 ERR_MODULE_NOT_FOUND，整个 profile 起不来。
+// 约定是类字段一律 declare 加构造器赋值，避免降级出外部 helper（见 src/host/helper-process.ts）；
+// 但 0.5.2 起为了方便宿主侧内联闭包，@oxc-project/runtime 已显式列入 dependencies 并随包安装，
+// 此时 helper 能被正常解析，因此只在「未声明依赖」时才阻断发布。
 const OXC_RUNTIME = '@oxc-project/runtime';
+const oxcDeclared = Boolean(pkg.dependencies?.[OXC_RUNTIME] ?? pkg.optionalDependencies?.[OXC_RUNTIME]);
 const oxcBundles = ['lib/index.js', 'lib/client.js'].filter((f) => {
   const p = join(ROOT, f);
   return existsSync(p) && readFileSync(p, 'utf8').includes(OXC_RUNTIME);
 });
-if (oxcBundles.length > 0)
+if (oxcBundles.length > 0 && !oxcDeclared)
   fail(
     `bundle imports undeclared helper ${OXC_RUNTIME} (${oxcBundles.join(', ')}) — ` +
-      '类字段改用 declare + 构造器赋值（见 src/host/helper-process.ts 的约定）',
+      '把它加进 dependencies，或把类字段改用 declare + 构造器赋值（见 src/host/helper-process.ts 的约定）',
   );
+else if (oxcBundles.length > 0)
+  ok(`${OXC_RUNTIME} helper imported by ${oxcBundles.join(', ')} and declared in dependencies`);
 else ok(`no undeclared ${OXC_RUNTIME} import in bundles`);
 
 if (process.exitCode) console.error('\n[prepack-check] fix the failures above before publishing.');

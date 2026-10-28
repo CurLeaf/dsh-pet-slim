@@ -90,3 +90,30 @@
 - 修复：构建期 noExternal 内联两包闭包 + 补 `@oxc-project/runtime` 依赖。
 - 验证：最小 profile（base + web-app + dsh-pet）启动成功，`/state` 200 且字段齐全。
 - 已装：desktop profile `0.5.2`，待重启确认。
+
+## 2026-10-27 发布门禁修复（迁移到 Linux 后复核）
+
+仓库搬到 `/home/yxw/WorkSpace/dsh-pet-slim` 后，按 `prepack` 链路逐项复核，发现两条门禁是红的，
+且都与 0.5.x 的改动有关，先修门禁本身（不改产品行为）：
+
+| 时间 | 项 | 修复前 | 修复后 | 证据 |
+|---|---|---|---|---|
+| 2026-10-27 | check:openapi | ✗ `host 实现了 /attention，但文档里没有` | ✓ 28 路径 / 36 操作全通过 | 误报源是 0.5.0 加的测试钩子 `rest === 'attention/test'`（仅 `DSH_PET_TEST_HOOKS=1` 挂载、发布版不暴露）；检查脚本把它当成公开路由。已让脚本跳过 `*/test` 段，而不是把测试钩子写进公开文档。 |
+| 2026-10-27 | prepack-check | ✗ `bundle imports undeclared helper @oxc-project/runtime` | ✓ `helper imported by lib/index.js and declared in dependencies` | 该规则的旧前提是「此包不在 dependencies」；0.5.2 的修复已把它列入 dependencies（`^0.155.0`）并随包安装，helper 能被解析。脚本改为「未声明依赖时才阻断」，保留了「防 ERR_MODULE_NOT_FOUND」的原意。 |
+| 2026-10-27 | format:check | ✗ 12 个文件不符合 Prettier | ✓ All matched files use Prettier code style | `npx prettier --write` 逐个格式化被点名的 12 个文件（每文件 6–7 行差异，纯格式）；格式化后 build / typecheck / lint / 984 tests 全部复跑通过。 |
+
+复核结论（Linux / Node 24.21.0 / pnpm 10.33.0）：
+
+- `npm run build` ✓（产物与仓库一致，`git status` 在格式化前无改动）
+- `npm test` ✓ **984 tests / 211 suites / 0 fail**
+- `npm run typecheck` ✓、`npm run lint` ✓、`npm run format:check` ✓
+- `node scripts/prepack-check.js` ✓（63.6MB 包体、27 张表情对齐）
+- `npm run check:openapi` ✓
+- `npm run test:ui`（`node --test scripts/tests/*.test.mjs`）：装好 Playwright chromium 后 **22 tests / 15 pass / 6 fail / 1 skip**。
+  6 个失败**在 HEAD 上就存在**（`git stash` 后复跑同为 12 pass / 6 fail，仅计 settings.test.mjs 的 18 项），与本次门禁修复无关：
+  - 5 个是选择器歧义：`getByRole('button', { name: 'Save', exact: true })` 同时命中工具栏与底栏两个 Save
+    按钮（`is-sm` 版 + 常规版），Playwright strict mode 直接报错；
+  - 1 个是 `model picker remains anchored … scrolled` 的 `waitForFunction` 5000ms 超时。
+  需要单独判断「响应式布局真的渲染了两个 Save」还是「测试该用 `.first()`/限定作用域」，未在本次修复。
+- 真机验收（P1 AC6.3 / P2 AC9 / P4 托盘角标）仍未做，且本机是 Linux，`node scripts/start-desktop.mjs`
+  与 `runtime/electron-helper` 的 macOS/Windows 分支需要重新确认

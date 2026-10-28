@@ -86,7 +86,14 @@ ok.push(`${Object.keys(doc.paths).length} 条路径 / ${ops} 个操作`);
 // 宿主半侧的路由是 if (rest === 'x') 链加 scope 分支，rest 可能是两段（config/meta），
 // 所以两侧都归一化成一级段再比对，否则会互相误报。
 const host = readFileSync(HOST_SRC, 'utf8');
-const implemented = new Set([...host.matchAll(/rest === '([^']+)'/g)].map((m) => m[1].split('/')[0]));
+const implemented = new Set(
+  [...host.matchAll(/rest === '([^']+)'/g)]
+    .map((m) => m[1])
+    // `attention/test` 这类仅测试钩子（DSH_PET_TEST_HOOKS=1 才挂载、发布版不暴露）不是公开
+    // API，不参与文档对齐；否则会被误判成「host 实现了但文档里没有」。
+    .filter((rest) => !/\/test$/.test(rest))
+    .map((rest) => rest.split('/')[0]),
+);
 for (const s of ['font', 'pic', 'thumb']) implemented.add(s);
 const documented = new Set();
 for (const p of Object.keys(doc.paths)) {
