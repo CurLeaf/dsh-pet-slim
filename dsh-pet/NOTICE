@@ -1,0 +1,29 @@
+dsh-pet-slim — NOTICE
+=====================
+
+This package is an unofficial "slim" fork of dsh-pet:
+
+  upstream repository : https://github.com/PC2005-cloud/dsh-pet
+  upstream package    : https://www.npmjs.com/package/dsh-pet
+
+Copyright (c) 2026 PC2005-cloud — original code, artwork, animations, audio.
+Copyright (c) 2026 curleaf      — fork-specific changes.
+
+Licensing
+---------
+- Code: MIT. The original LICENSE file from the upstream project is retained
+  unchanged in this package.
+- Assets (everything under `assets/`): the upstream terms apply — no commercial
+  use, and public derivative works must credit the upstream project linked
+  above.
+
+What this fork changes
+----------------------
+- The npm package name and the browser module-loader id are `dsh-pet-slim`, so
+  the package does not collide with the upstream `dsh-pet` name on the registry.
+- repository / homepage / bugs metadata point at the fork repository.
+- Behavioural changes on top of the upstream release are tracked in the fork
+  repository's history; this package does not claim to be the upstream build.
+
+The internal asset route prefix (`/dsh-pet-7340`) is kept unchanged, so existing
+upstream documentation and asset URLs stay valid.
